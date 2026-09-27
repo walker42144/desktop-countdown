@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TestDiscovery.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -93,6 +93,13 @@ function Invoke-Test {
         'restores task state when task deletion fails',
         'restores task state when registry write fails',
         'restores startup state when configuration save fails',
+        'accepts a valid response and records a bounded offset',
+        'rejects a short response without changing the offset',
+        'rejects invalid server mode and stratum',
+        'rejects a response that does not match the request',
+        'keeps the prior calibration after a timeout',
+        'rejects an excessive offset',
+        'keeps calibrated time stable across a system clock jump',
         'fails when the required startup module is missing',
         'returns a nonzero test command exit code when startup is missing'
     )

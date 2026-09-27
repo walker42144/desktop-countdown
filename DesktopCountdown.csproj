@@ -47,6 +47,7 @@
       <LogicalName>DesktopCountdown.ScrollBarStyle.xaml</LogicalName>
     </EmbeddedResource>
     <Compile Include="src\DesktopCountdown\AccurateClock.cs" />
+    <Compile Include="src\DesktopCountdown\ClockSource.cs" />
     <Compile Include="src\DesktopCountdown\AppSettings.cs" />
     <Compile Include="src\DesktopCountdown\DesktopHostService.cs" />
     <Compile Include="src\DesktopCountdown\DisplayFormats.cs" />
