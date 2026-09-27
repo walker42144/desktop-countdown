@@ -19,6 +19,17 @@ namespace DesktopCountdown
     public static class WallpaperColorService
     {
         private const int SpiGetDesktopWallpaper = 0x0073;
+        private static readonly object CacheGate = new object();
+        private static Bitmap cachedBitmap;
+        private static string cachedPath;
+        private static DateTime cachedWriteTimeUtc;
+        private static long cachedLength;
+        private static Rectangle cachedWidget;
+        private static Rectangle cachedDestination;
+        private static string cachedStyle;
+        private static bool cachedTile;
+        private static WallpaperAppearance cachedAppearance;
+        private static int decodeCount;
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern bool SystemParametersInfo(int action, int parameter, StringBuilder value, int flags);
@@ -37,15 +48,75 @@ namespace DesktopCountdown
 
                 if (style == "22") destination = System.Windows.Forms.SystemInformation.VirtualScreen;
 
-                using (Bitmap bitmap = new Bitmap(path))
-                {
-                    return AnalyzeBitmap(bitmap, widgetBounds, destination, style, tile, Path.GetFileName(path));
-                }
+                return AnalyzeFile(path, widgetBounds, destination, style, tile);
             }
             catch (Exception ex)
             {
                 return DefaultAppearance("壁纸分析失败：" + ex.Message);
             }
+        }
+
+        internal static int DecodeCount
+        {
+            get { lock (CacheGate) return decodeCount; }
+        }
+
+        internal static void Invalidate()
+        {
+            lock (CacheGate)
+            {
+                if (cachedBitmap != null) cachedBitmap.Dispose();
+                cachedBitmap = null;
+                cachedPath = null;
+                cachedAppearance = null;
+            }
+        }
+
+        internal static WallpaperAppearance AnalyzeFile(string path, Rectangle widget, Rectangle destination,
+            string style, bool tile)
+        {
+            FileInfo file = new FileInfo(path);
+            DateTime writeTimeUtc = file.LastWriteTimeUtc;
+            long length = file.Length;
+            lock (CacheGate)
+            {
+                if (cachedBitmap == null || !string.Equals(cachedPath, path, StringComparison.OrdinalIgnoreCase) ||
+                    cachedWriteTimeUtc != writeTimeUtc || cachedLength != length)
+                {
+                    Bitmap replacement;
+                    using (Bitmap source = new Bitmap(path)) replacement = new Bitmap(source);
+                    if (cachedBitmap != null) cachedBitmap.Dispose();
+                    cachedBitmap = replacement;
+                    cachedPath = path;
+                    cachedWriteTimeUtc = writeTimeUtc;
+                    cachedLength = length;
+                    cachedAppearance = null;
+                    decodeCount++;
+                }
+                if (cachedAppearance == null || cachedWidget != widget || cachedDestination != destination ||
+                    cachedStyle != style || cachedTile != tile)
+                {
+                    cachedAppearance = AnalyzeBitmap(cachedBitmap, widget, destination, style, tile,
+                        Path.GetFileName(path));
+                    cachedWidget = widget;
+                    cachedDestination = destination;
+                    cachedStyle = style;
+                    cachedTile = tile;
+                }
+                return Copy(cachedAppearance);
+            }
+        }
+
+        private static WallpaperAppearance Copy(WallpaperAppearance appearance)
+        {
+            return new WallpaperAppearance
+            {
+                Foreground = appearance.Foreground,
+                Shadow = appearance.Shadow,
+                UseBackdrop = appearance.UseBackdrop,
+                Luminance = appearance.Luminance,
+                Description = appearance.Description
+            };
         }
 
         private static WallpaperAppearance AnalyzeBitmap(Bitmap bitmap, Rectangle widget, Rectangle destination,

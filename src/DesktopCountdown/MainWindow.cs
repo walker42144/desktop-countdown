@@ -791,6 +791,7 @@ namespace DesktopCountdown
 
         private void SystemPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
+            WallpaperColorService.Invalidate();
             RunOnUi(QueueAppearanceUpdate);
         }
 
