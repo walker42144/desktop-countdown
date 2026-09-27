@@ -286,10 +286,10 @@ namespace DesktopCountdown
             if (sourceReady)
             {
                 bool attached = desktopHost.ApplyDesktopMode(this, settings.DesktopMode);
-                if (settings.DesktopMode && !attached)
+                if (settings.DesktopMode != attached)
                 {
-                    settings.DesktopMode = false;
-                    Topmost = settings.AlwaysOnTop;
+                    settings.DesktopMode = attached;
+                    Topmost = settings.AlwaysOnTop && !attached;
                 }
                 desktopHost.ApplyClickThrough(this, settings.Locked);
             }

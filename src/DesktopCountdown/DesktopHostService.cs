@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 
@@ -7,107 +6,152 @@ namespace DesktopCountdown
 {
     public sealed class DesktopHostService
     {
-        private const int GwlStyle = -16;
-        private const int GwlExStyle = -20;
         private const int WsChild = 0x40000000;
         private const int WsPopup = unchecked((int)0x80000000);
         private const int WsExTransparent = 0x00000020;
         private const int WsExToolWindow = 0x00000080;
         private const int WsExNoActivate = 0x08000000;
-        private const uint SwpNoActivate = 0x0010;
-        private const uint SmtoNormal = 0x0000;
 
+        private readonly NativeWindowOps ops;
         private IntPtr windowHandle;
-        private IntPtr desktopHost;
-        private int originalStyle;
+        private IntPtr hostHandle;
+        private NativeWindowSnapshot original;
         private bool attached;
+
+        public DesktopHostService() : this(new NativeWindowOps()) { }
+
+        internal DesktopHostService(NativeWindowOps nativeOps)
+        {
+            if (nativeOps == null) throw new ArgumentNullException("nativeOps");
+            ops = nativeOps;
+        }
 
         public bool IsAttached { get { return attached; } }
 
         public bool ApplyDesktopMode(Window window, bool enabled)
         {
-            windowHandle = new WindowInteropHelper(window).Handle;
-            if (windowHandle == IntPtr.Zero) return false;
-            if (enabled == attached) return attached;
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            return ApplyWithHandle(handle, enabled);
+        }
 
-            if (enabled)
+        internal bool ApplyWithHandle(IntPtr handle, bool enabled)
+        {
+            if (handle == IntPtr.Zero) return attached;
+            if (attached)
             {
-                desktopHost = FindWallpaperWorker();
-                if (desktopHost == IntPtr.Zero) return false;
+                NativeWindowSnapshot current = Capture(handle);
+                if (handle != windowHandle || current == null || current.Parent != hostHandle)
+                {
+                    bool restored = handle != windowHandle || original == null || Restore(handle, original);
+                    attached = false;
+                    original = null;
+                    hostHandle = IntPtr.Zero;
+                    if (!restored) return false;
+                }
+            }
+            if (enabled == attached) return attached;
+            return enabled ? Attach(handle) : Detach(handle);
+        }
 
-                NativeRect rect;
-                GetWindowRect(windowHandle, out rect);
-                originalStyle = GetWindowLong(windowHandle, GwlStyle);
-                SetWindowLong(windowHandle, GwlStyle, (originalStyle | WsChild) & ~WsPopup);
-                SetParent(windowHandle, desktopHost);
-                NativePoint point = new NativePoint { X = rect.Left, Y = rect.Top };
-                ScreenToClient(desktopHost, ref point);
-                SetWindowPos(windowHandle, IntPtr.Zero, point.X, point.Y,
-                    rect.Right - rect.Left, rect.Bottom - rect.Top, SwpNoActivate);
+        private bool Attach(IntPtr handle)
+        {
+            IntPtr host;
+            NativeWindowSnapshot before;
+            try
+            {
+                host = ops.FindHost();
+                before = Capture(handle);
+            }
+            catch { return false; }
+            if (host == IntPtr.Zero || before == null) return false;
+
+            try
+            {
+                if (!ops.SetStyle(handle, (before.Style | WsChild) & ~WsPopup))
+                    throw new InvalidOperationException("SetStyle");
+                if (!ops.SetParent(handle, host))
+                    throw new InvalidOperationException("SetParent");
+                if (!ops.SetPosition(handle, host, before.Left, before.Top, before.Width, before.Height))
+                    throw new InvalidOperationException("SetPosition");
+                windowHandle = handle;
+                hostHandle = host;
+                original = before;
                 attached = true;
                 return true;
             }
+            catch
+            {
+                Restore(handle, before);
+                return false;
+            }
+        }
 
-            NativeRect current;
-            GetWindowRect(windowHandle, out current);
-            SetParent(windowHandle, IntPtr.Zero);
-            SetWindowLong(windowHandle, GwlStyle, originalStyle == 0 ? GetWindowLong(windowHandle, GwlStyle) & ~WsChild : originalStyle);
-            SetWindowPos(windowHandle, IntPtr.Zero, current.Left, current.Top,
-                current.Right - current.Left, current.Bottom - current.Top, SwpNoActivate);
-            attached = false;
-            desktopHost = IntPtr.Zero;
-            return false;
+        private bool Detach(IntPtr handle)
+        {
+            NativeWindowSnapshot current = Capture(handle);
+            if (current == null || original == null) return true;
+            try
+            {
+                if (!ops.SetParent(handle, original.Parent))
+                    throw new InvalidOperationException("SetParent");
+                if (!ops.SetStyle(handle, original.Style))
+                    throw new InvalidOperationException("SetStyle");
+                if (!ops.SetPosition(handle, original.Parent,
+                    current.Left, current.Top, current.Width, current.Height))
+                    throw new InvalidOperationException("SetPosition");
+                attached = false;
+                original = null;
+                hostHandle = IntPtr.Zero;
+                return false;
+            }
+            catch
+            {
+                Restore(handle, current);
+                return true;
+            }
+        }
+
+        private NativeWindowSnapshot Capture(IntPtr handle)
+        {
+            try { return ops.Capture(handle) as NativeWindowSnapshot; }
+            catch { return null; }
+        }
+
+        private bool Restore(IntPtr handle, NativeWindowSnapshot state)
+        {
+            bool restored = true;
+            try { if (!ops.SetParent(handle, state.Parent)) restored = false; } catch { restored = false; }
+            try { if (!ops.SetStyle(handle, state.Style)) restored = false; } catch { restored = false; }
+            try { if (!ops.SetExStyle(handle, state.ExStyle)) restored = false; } catch { restored = false; }
+            try
+            {
+                if (!ops.SetPosition(handle, state.Parent, state.Left, state.Top, state.Width, state.Height))
+                    restored = false;
+            }
+            catch { restored = false; }
+            return restored;
         }
 
         public void ApplyClickThrough(Window window, bool enabled)
         {
-            IntPtr handle = new WindowInteropHelper(window).Handle;
-            if (handle == IntPtr.Zero) return;
-            int style = GetWindowLong(handle, GwlExStyle);
-            style |= WsExToolWindow;
+            TryApplyClickThrough(new WindowInteropHelper(window).Handle, enabled);
+        }
+
+        internal bool TryApplyClickThrough(IntPtr handle, bool enabled)
+        {
+            if (handle == IntPtr.Zero) return false;
+            NativeWindowSnapshot state = Capture(handle);
+            if (state == null) return false;
+            int style = state.ExStyle | WsExToolWindow;
             if (enabled) style |= WsExTransparent | WsExNoActivate;
             else style &= ~(WsExTransparent | WsExNoActivate);
-            SetWindowLong(handle, GwlExStyle, style);
-        }
-
-        private static IntPtr FindWallpaperWorker()
-        {
-            IntPtr progman = FindWindow("Progman", null);
-            IntPtr ignored;
-            SendMessageTimeout(progman, 0x052C, IntPtr.Zero, IntPtr.Zero, SmtoNormal, 1000, out ignored);
-
-            IntPtr result = IntPtr.Zero;
-            EnumWindows(delegate(IntPtr topWindow, IntPtr parameter)
+            try
             {
-                IntPtr shellView = FindWindowEx(topWindow, IntPtr.Zero, "SHELLDLL_DefView", null);
-                if (shellView != IntPtr.Zero)
-                {
-                    result = FindWindowEx(IntPtr.Zero, topWindow, "WorkerW", null);
-                    return false;
-                }
-                return true;
-            }, IntPtr.Zero);
-
-            return result != IntPtr.Zero ? result : progman;
+                if (ops.SetExStyle(handle, style)) return true;
+            }
+            catch { }
+            try { ops.SetExStyle(handle, state.ExStyle); } catch { }
+            return false;
         }
-
-        private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct NativePoint { public int X; public int Y; }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct NativeRect { public int Left; public int Top; public int Right; public int Bottom; }
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern IntPtr FindWindow(string className, string windowName);
-        [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string className, string windowName);
-        [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
-        [DllImport("user32.dll")] private static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
-        [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetParent(IntPtr child, IntPtr newParent);
-        [DllImport("user32.dll", SetLastError = true)] private static extern int GetWindowLong(IntPtr window, int index);
-        [DllImport("user32.dll", SetLastError = true)] private static extern int SetWindowLong(IntPtr window, int index, int newValue);
-        [DllImport("user32.dll", SetLastError = true)] private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
-        [DllImport("user32.dll", SetLastError = true)] private static extern bool ScreenToClient(IntPtr window, ref NativePoint point);
-        [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
     }
 }
