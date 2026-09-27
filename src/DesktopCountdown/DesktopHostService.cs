@@ -40,13 +40,18 @@ namespace DesktopCountdown
             if (attached)
             {
                 NativeWindowSnapshot current = Capture(handle);
-                if (handle != windowHandle || current == null || current.Parent != hostHandle)
+                if (handle != windowHandle)
                 {
-                    bool restored = handle != windowHandle || original == null || Restore(handle, original);
-                    attached = false;
-                    original = null;
-                    hostHandle = IntPtr.Zero;
-                    if (!restored) return false;
+                    ClearAttachment();
+                }
+                else if (current == null)
+                {
+                    return true;
+                }
+                else if (current.Parent != hostHandle)
+                {
+                    if (original != null && !Restore(handle, original)) return true;
+                    ClearAttachment();
                 }
             }
             if (enabled == attached) return attached;
@@ -64,6 +69,10 @@ namespace DesktopCountdown
             }
             catch { return false; }
             if (host == IntPtr.Zero || before == null) return false;
+            NativeWindowSnapshot hostBounds = Capture(host);
+            if (hostBounds == null || !ContainsCenter(hostBounds, before)) return false;
+            try { if (!ops.DpiCompatible(handle, host)) return false; }
+            catch { return false; }
 
             try
             {
@@ -73,6 +82,9 @@ namespace DesktopCountdown
                     throw new InvalidOperationException("SetParent");
                 if (!ops.SetPosition(handle, host, before.Left, before.Top, before.Width, before.Height))
                     throw new InvalidOperationException("SetPosition");
+                NativeWindowSnapshot after = Capture(handle);
+                if (after == null || after.Parent != host || !ContainsCenter(hostBounds, after))
+                    throw new InvalidOperationException("HostGeometry");
                 windowHandle = handle;
                 hostHandle = host;
                 original = before;
@@ -89,7 +101,8 @@ namespace DesktopCountdown
         private bool Detach(IntPtr handle)
         {
             NativeWindowSnapshot current = Capture(handle);
-            if (current == null || original == null) return true;
+            if (current == null) return true;
+            if (original == null) return true;
             try
             {
                 if (!ops.SetParent(handle, original.Parent))
@@ -99,16 +112,36 @@ namespace DesktopCountdown
                 if (!ops.SetPosition(handle, original.Parent,
                     current.Left, current.Top, current.Width, current.Height))
                     throw new InvalidOperationException("SetPosition");
-                attached = false;
-                original = null;
-                hostHandle = IntPtr.Zero;
+                ClearAttachment();
                 return false;
             }
             catch
             {
-                Restore(handle, current);
+                Restore(handle, original);
+                NativeWindowSnapshot recovered = Capture(handle);
+                if (recovered != null && recovered.Parent == original.Parent && recovered.Style == original.Style)
+                {
+                    ClearAttachment();
+                    return false;
+                }
                 return true;
             }
+        }
+
+        private void ClearAttachment()
+        {
+            attached = false;
+            original = null;
+            hostHandle = IntPtr.Zero;
+        }
+
+        private static bool ContainsCenter(NativeWindowSnapshot host, NativeWindowSnapshot child)
+        {
+            if (host.Width <= 0 || host.Height <= 0 || child.Width <= 0 || child.Height <= 0) return false;
+            long x = (long)child.Left + child.Width / 2;
+            long y = (long)child.Top + child.Height / 2;
+            return x >= host.Left && x < (long)host.Left + host.Width &&
+                y >= host.Top && y < (long)host.Top + host.Height;
         }
 
         private NativeWindowSnapshot Capture(IntPtr handle)

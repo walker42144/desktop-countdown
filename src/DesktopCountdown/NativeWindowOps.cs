@@ -39,10 +39,11 @@ namespace DesktopCountdown
         internal readonly Func<IntPtr, int, bool> SetExStyle;
         internal readonly Func<IntPtr, IntPtr, bool> SetParent;
         internal readonly Func<IntPtr, IntPtr, int, int, int, int, bool> SetPosition;
+        internal readonly Func<IntPtr, IntPtr, bool> DpiCompatible;
 
         internal NativeWindowOps()
             : this(FindWallpaperWorker, CaptureNative, SetStyleNative, SetExStyleNative,
-                SetParentNative, SetPositionNative)
+                SetParentNative, SetPositionNative, HasCompatibleDpi)
         {
         }
 
@@ -50,9 +51,19 @@ namespace DesktopCountdown
             Func<IntPtr, int, bool> setStyle, Func<IntPtr, int, bool> setExStyle,
             Func<IntPtr, IntPtr, bool> setParent,
             Func<IntPtr, IntPtr, int, int, int, int, bool> setPosition)
+            : this(findHost, capture, setStyle, setExStyle, setParent, setPosition,
+                delegate { return true; })
+        {
+        }
+
+        internal NativeWindowOps(Func<IntPtr> findHost, Func<IntPtr, object> capture,
+            Func<IntPtr, int, bool> setStyle, Func<IntPtr, int, bool> setExStyle,
+            Func<IntPtr, IntPtr, bool> setParent,
+            Func<IntPtr, IntPtr, int, int, int, int, bool> setPosition,
+            Func<IntPtr, IntPtr, bool> dpiCompatible)
         {
             if (findHost == null || capture == null || setStyle == null || setExStyle == null ||
-                setParent == null || setPosition == null)
+                setParent == null || setPosition == null || dpiCompatible == null)
                 throw new ArgumentNullException("nativeOps");
             FindHost = findHost;
             Capture = capture;
@@ -60,6 +71,19 @@ namespace DesktopCountdown
             SetExStyle = setExStyle;
             SetParent = setParent;
             SetPosition = setPosition;
+            DpiCompatible = dpiCompatible;
+        }
+
+        private static bool HasCompatibleDpi(IntPtr child, IntPtr host)
+        {
+            try
+            {
+                IntPtr childContext = GetWindowDpiAwarenessContext(child);
+                IntPtr hostContext = GetWindowDpiAwarenessContext(host);
+                return childContext != IntPtr.Zero && hostContext != IntPtr.Zero &&
+                    AreDpiAwarenessContextsEqual(childContext, hostContext);
+            }
+            catch (EntryPointNotFoundException) { return false; }
         }
 
         private static object CaptureNative(IntPtr handle)
@@ -129,7 +153,7 @@ namespace DesktopCountdown
                 return true;
             }, IntPtr.Zero);
             if (!enumerated) return IntPtr.Zero;
-            return result != IntPtr.Zero ? result : progman;
+            return result != IntPtr.Zero && IsWindowVisible(result) ? result : IntPtr.Zero;
         }
 
         private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
@@ -142,6 +166,9 @@ namespace DesktopCountdown
 
         [DllImport("kernel32.dll")] private static extern void SetLastError(uint errorCode);
         [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr handle);
+        [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr handle);
+        [DllImport("user32.dll")] private static extern IntPtr GetWindowDpiAwarenessContext(IntPtr handle);
+        [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr left, IntPtr right);
         [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr handle);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern IntPtr FindWindow(string className, string windowName);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string className, string windowName);

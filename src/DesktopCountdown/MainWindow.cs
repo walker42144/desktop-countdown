@@ -48,6 +48,7 @@ namespace DesktopCountdown
         private readonly IList<System.Windows.Forms.ToolStripMenuItem> themeTrayItems = new List<System.Windows.Forms.ToolStripMenuItem>();
         private bool exiting;
         private bool sourceReady;
+        private bool desktopModeTransition;
         private string wallpaperStatus = "尚未分析壁纸";
 
         public MainWindow(AppSettings initialSettings)
@@ -216,7 +217,8 @@ namespace DesktopCountdown
             SourceInitialized += delegate { sourceReady = true; };
             LocationChanged += delegate
             {
-                if (!motion.IsApplying) motion.SetAnchor(Left, Top);
+                if (!motion.IsApplying && !desktopModeTransition && !desktopHost.IsAttached)
+                    motion.SetAnchor(Left, Top);
                 QueueAppearanceUpdate();
             };
             SizeChanged += delegate { QueueAppearanceUpdate(); };
@@ -257,6 +259,7 @@ namespace DesktopCountdown
 
         private void ApplySettingsToView()
         {
+            bool desktopModeUnavailable = false;
             titleText.Text = TargetHeading(settings);
             titleText.FontFamily = SafeFont(settings.TitleFontFamily, "MiSans");
             titleText.FontSize = settings.TitleFontSize;
@@ -271,11 +274,16 @@ namespace DesktopCountdown
 
             if (sourceReady)
             {
-                bool attached = desktopHost.ApplyDesktopMode(this, settings.DesktopMode);
-                if (settings.DesktopMode != attached)
+                bool requested = settings.DesktopMode;
+                bool attached;
+                desktopModeTransition = true;
+                try { attached = desktopHost.ApplyDesktopMode(this, requested); }
+                finally { desktopModeTransition = false; }
+                if (requested && !attached)
                 {
-                    settings.DesktopMode = attached;
-                    Topmost = settings.AlwaysOnTop && !attached;
+                    settings.DesktopMode = false;
+                    Topmost = settings.AlwaysOnTop;
+                    desktopModeUnavailable = true;
                 }
                 desktopHost.ApplyClickThrough(this, settings.Locked);
             }
@@ -284,6 +292,9 @@ namespace DesktopCountdown
             QueueAppearanceUpdate();
             UpdateTrayChecks();
             ConfigureMotion();
+            if (desktopModeUnavailable)
+                MessageBox.Show("当前桌面层宿主不可用或与显示缩放不兼容，已保持普通窗口模式。",
+                    "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private static string TargetHeading(AppSettings value)
@@ -631,9 +642,15 @@ namespace DesktopCountdown
 
         private void ToggleDesktopMode()
         {
-            settings.DesktopMode = !settings.DesktopMode;
+            bool enable = !desktopHost.IsAttached;
+            settings.DesktopMode = enable;
             ApplySettingsToView();
+            if (!desktopHost.IsAttached)
+                EnsureVisiblePosition();
             SaveSettings(false);
+            if (!enable && desktopHost.IsAttached)
+                MessageBox.Show("无法从桌面层恢复。关闭状态已保存；请退出程序并重新启动，窗口将以普通模式打开。",
+                    "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void ToggleTopmost()
@@ -705,15 +722,33 @@ namespace DesktopCountdown
 
         private void EnsureVisiblePosition()
         {
-            double virtualLeft = SystemParameters.VirtualScreenLeft;
-            double virtualTop = SystemParameters.VirtualScreenTop;
-            double virtualRight = virtualLeft + SystemParameters.VirtualScreenWidth;
-            double virtualBottom = virtualTop + SystemParameters.VirtualScreenHeight;
-            if (Left < virtualLeft - 100 || Top < virtualTop - 100 || Left > virtualRight - 50 || Top > virtualBottom - 50)
+            try
             {
-                Left = virtualLeft + Math.Max(40, (SystemParameters.VirtualScreenWidth - 500) / 2);
-                Top = virtualTop + 80;
+                Point start = PointToScreen(new Point(ShadowGutter, ShadowGutter));
+                Point end = PointToScreen(new Point(Math.Max(ShadowGutter + 1, ActualWidth - ShadowGutter),
+                    Math.Max(ShadowGutter + 1, ActualHeight - ShadowGutter)));
+                DrawingRectangle visible = DrawingRectangle.FromLTRB((int)start.X, (int)start.Y,
+                    (int)Math.Max(start.X + 1, end.X), (int)Math.Max(start.Y + 1, end.Y));
+                List<DrawingRectangle> workAreas = new List<DrawingRectangle>();
+                foreach (System.Windows.Forms.Screen screen in System.Windows.Forms.Screen.AllScreens)
+                    workAreas.Add(screen.WorkingArea);
+                if (IsOnWorkingScreen(visible, workAreas)) return;
             }
+            catch (Exception ex) { DiagnosticLog.Record("MainWindow.VisiblePosition", ex); }
+            Rect work = GetWorkArea(System.Windows.Forms.Screen.PrimaryScreen);
+            Left = work.Left + Math.Max(40, (work.Width - Math.Max(500, ActualWidth)) / 2);
+            Top = work.Top + 80;
+        }
+
+        private static bool IsOnWorkingScreen(DrawingRectangle window,
+            IEnumerable<DrawingRectangle> workAreas)
+        {
+            foreach (DrawingRectangle work in workAreas)
+            {
+                DrawingRectangle overlap = DrawingRectangle.Intersect(window, work);
+                if (overlap.Width >= 32 && overlap.Height >= 32) return true;
+            }
+            return false;
         }
 
         private void SnapVisibleSurfaceToNearestEdge()

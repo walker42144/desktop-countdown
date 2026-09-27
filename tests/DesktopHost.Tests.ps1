@@ -3,19 +3,20 @@ $serviceType = $assembly.GetType('DesktopCountdown.DesktopHostService', $true)
 $opsType = $assembly.GetType('DesktopCountdown.NativeWindowOps', $true)
 $snapshotType = $assembly.GetType('DesktopCountdown.NativeWindowSnapshot', $true)
 $flags = [System.Reflection.BindingFlags]'Instance,NonPublic'
-$opsConstructor = @($opsType.GetConstructors($flags) | Where-Object { $_.GetParameters().Count -eq 6 })[0]
+$opsConstructor = @($opsType.GetConstructors($flags) | Where-Object { $_.GetParameters().Count -eq 7 })[0]
 $serviceConstructor = @($serviceType.GetConstructors($flags) | Where-Object { $_.GetParameters().Count -eq 1 })[0]
 $snapshotConstructor = @($snapshotType.GetConstructors($flags) | Where-Object { $_.GetParameters().Count -eq 7 })[0]
 $applyMethod = $serviceType.GetMethod('ApplyWithHandle', $flags)
 $clickMethod = $serviceType.GetMethod('TryApplyClickThrough', $flags)
 
-function New-FakeDesktopHost {
+function New-FakeDesktopHost([bool]$compatibleDpi = $true) {
     $snapshotCtor = $snapshotConstructor
     $state = @{
         Parent = [IntPtr]::Zero; Style = [int]::MinValue; ExStyle = 0
         Left = 100; Top = 200; Width = 300; Height = 120
+        HostLeft = 0; HostTop = 0; HostWidth = 1920; HostHeight = 1080
         HostAvailable = $true; CaptureAvailable = $true
-        FailStep = ''; FailureUsed = $false
+        FailStep = ''; FailureUsed = $false; FailAlways = $false
     }
     $find = [Func[IntPtr]]({
         if ($state.HostAvailable) { return [IntPtr]200 }
@@ -24,13 +25,17 @@ function New-FakeDesktopHost {
     $capture = [Func[IntPtr,object]]({
         param($handle)
         if (-not $state.CaptureAvailable) { return $null }
+        if ($handle -eq [IntPtr]200) {
+            return $snapshotCtor.Invoke([object[]]@([IntPtr]::Zero, 0, 0,
+                $state.HostLeft, $state.HostTop, $state.HostWidth, $state.HostHeight))
+        }
         return $snapshotCtor.Invoke([object[]]@($state.Parent, $state.Style, $state.ExStyle,
             $state.Left, $state.Top, $state.Width, $state.Height))
     }.GetNewClosure())
     $setStyle = [Func[IntPtr,int,bool]]({
         param($handle, $value)
         $state.Style = $value
-        if ($state.FailStep -eq 'style' -and -not $state.FailureUsed) {
+        if ($state.FailStep -eq 'style' -and ($state.FailAlways -or -not $state.FailureUsed)) {
             $state.FailureUsed = $true
             return $false
         }
@@ -39,7 +44,7 @@ function New-FakeDesktopHost {
     $setExStyle = [Func[IntPtr,int,bool]]({
         param($handle, $value)
         $state.ExStyle = $value
-        if ($state.FailStep -eq 'exstyle' -and -not $state.FailureUsed) {
+        if ($state.FailStep -eq 'exstyle' -and ($state.FailAlways -or -not $state.FailureUsed)) {
             $state.FailureUsed = $true
             return $false
         }
@@ -47,8 +52,9 @@ function New-FakeDesktopHost {
     }.GetNewClosure())
     $setParent = [Func[IntPtr,IntPtr,bool]]({
         param($handle, $value)
+        if ($state.FailStep -eq 'parent' -and $state.FailAlways) { return $false }
         $state.Parent = $value
-        if ($state.FailStep -eq 'parent' -and -not $state.FailureUsed) {
+        if ($state.FailStep -eq 'parent' -and ($state.FailAlways -or -not $state.FailureUsed)) {
             $state.FailureUsed = $true
             return $false
         }
@@ -57,14 +63,15 @@ function New-FakeDesktopHost {
     $setPosition = [Func[IntPtr,IntPtr,int,int,int,int,bool]]({
         param($handle, $parent, $left, $top, $width, $height)
         $state.Left = $left; $state.Top = $top; $state.Width = $width; $state.Height = $height
-        if ($state.FailStep -eq 'position' -and -not $state.FailureUsed) {
+        if ($state.FailStep -eq 'position' -and ($state.FailAlways -or -not $state.FailureUsed)) {
             $state.FailureUsed = $true
             return $false
         }
         return $true
     }.GetNewClosure())
+    $dpi = [Func[IntPtr,IntPtr,bool]]({ return $compatibleDpi }.GetNewClosure())
     $ops = $opsConstructor.Invoke([object[]]@($find, $capture, $setStyle, $setExStyle,
-        $setParent, $setPosition))
+        $setParent, $setPosition, $dpi))
     return [pscustomobject]@{ Service = $serviceConstructor.Invoke([object[]]@($ops)); State = $state }
 }
 
@@ -122,15 +129,60 @@ Describe 'DesktopCountdown desktop host rollback' {
         $fake.State.Parent | Should Be ([IntPtr]::Zero)
     }
 
-    It 'restores the attached state when detach fails' {
+    It 'refuses a desktop host that cannot display the widget center' {
+        $fake = New-FakeDesktopHost
+        $fake.State.HostLeft = 1000
+        (Invoke-DesktopMode $fake $true) | Should Be $false
+        $fake.Service.IsAttached | Should Be $false
+        $fake.State.Parent | Should Be ([IntPtr]::Zero)
+        $fake.State.Style | Should Be ([int]::MinValue)
+    }
+
+    It 'refuses cross-process parenting with incompatible DPI contexts' {
+        $fake = New-FakeDesktopHost $false
+        (Invoke-DesktopMode $fake $true) | Should Be $false
+        $fake.Service.IsAttached | Should Be $false
+        $fake.State.Parent | Should Be ([IntPtr]::Zero)
+        $fake.State.Style | Should Be ([int]::MinValue)
+    }
+
+    It 'detects a window outside both monitor working areas' {
+        $windowType = $assembly.GetType('DesktopCountdown.MainWindow', $true)
+        $method = $windowType.GetMethod('IsOnWorkingScreen', [System.Reflection.BindingFlags]'Static,NonPublic')
+        $screens = [System.Drawing.Rectangle[]]@(
+            [System.Drawing.Rectangle]::new(0, 0, 1707, 1019),
+            [System.Drawing.Rectangle]::new(-1493, 0, 1493, 885))
+        $arguments = [object[]]::new(2)
+        $arguments[1] = $screens
+        $arguments[0] = [System.Drawing.Rectangle]::new(-2200, 80, 500, 160)
+        $method.Invoke($null, $arguments) | Should Be $false
+        $arguments[0] = [System.Drawing.Rectangle]::new(-1450, 80, 500, 160)
+        $method.Invoke($null, $arguments) | Should Be $true
+    }
+
+    It 'prefers a visible top-level window when detach fails' {
         $fake = New-FakeDesktopHost
         (Invoke-DesktopMode $fake $true) | Should Be $true
-        $attachedStyle = $fake.State.Style
         $fake.State.FailStep = 'position'
+        (Invoke-DesktopMode $fake $false) | Should Be $false
+        $fake.Service.IsAttached | Should Be $false
+        $fake.State.Parent | Should Be ([IntPtr]::Zero)
+        $fake.State.Style | Should Be ([int]::MinValue)
+        $fake.State.Left | Should Be 100
+        $fake.State.Top | Should Be 200
+    }
+
+    It 'retains recovery state when even top-level restoration fails' {
+        $fake = New-FakeDesktopHost
+        (Invoke-DesktopMode $fake $true) | Should Be $true
+        $fake.State.FailStep = 'parent'
+        $fake.State.FailAlways = $true
         (Invoke-DesktopMode $fake $false) | Should Be $true
         $fake.Service.IsAttached | Should Be $true
-        $fake.State.Parent | Should Be ([IntPtr]200)
-        $fake.State.Style | Should Be $attachedStyle
+        $fake.State.FailAlways = $false
+        (Invoke-DesktopMode $fake $false) | Should Be $false
+        $fake.Service.IsAttached | Should Be $false
+        $fake.State.Parent | Should Be ([IntPtr]::Zero)
     }
 
     It 'recovers after the wallpaper worker disappears' {
