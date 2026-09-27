@@ -11,8 +11,8 @@ using System.Windows.Threading;
 [assembly: AssemblyDescription("简洁、准确、可随壁纸自适应的 Windows 桌面倒计时")]
 [assembly: AssemblyCompany("walker42144")]
 [assembly: AssemblyProduct("Desktop Countdown")]
-[assembly: AssemblyVersion("0.1.1.0")]
-[assembly: AssemblyFileVersion("0.1.1.0")]
+[assembly: AssemblyVersion("0.2.0.0")]
+[assembly: AssemblyFileVersion("0.2.0.0")]
 [assembly: ComVisible(false)]
 
 namespace DesktopCountdown
@@ -79,6 +79,7 @@ namespace DesktopCountdown
                 defaults.Validate();
                 VerifyEdgeSnapping();
                 ThemeDefinition theme = ThemeCatalog.Get(defaults.ThemeName);
+                VerifyThemes();
                 Rectangle area = new Rectangle(100, 100, 480, 160);
                 WallpaperAppearance wallpaper = WallpaperColorService.Analyze(area);
                 string result = "OK" + Environment.NewLine +
@@ -105,6 +106,22 @@ namespace DesktopCountdown
             double middle = EdgeSnapCalculator.SnapAxis(600, 500, 0, 1920, 18, 32);
             if (Math.Abs(left - (-18)) > 0.01 || Math.Abs(right - 1438) > 0.01 || Math.Abs(middle - 600) > 0.01)
                 throw new InvalidOperationException("屏幕边缘吸附计算未通过自检");
+        }
+
+        private static void VerifyThemes()
+        {
+            System.Collections.Generic.HashSet<string> keys = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (ThemeDefinition theme in ThemeCatalog.All())
+            {
+                if (string.IsNullOrWhiteSpace(theme.Key) || string.IsNullOrWhiteSpace(theme.DisplayName) || !keys.Add(theme.Key))
+                    throw new InvalidOperationException("主题目录包含空值或重复键");
+            }
+            if (keys.Count != 10) throw new InvalidOperationException("v0.2.0 应包含10套主题");
+            using (System.Drawing.Icon icon = IconFactory.CreateClockIcon())
+            {
+                if (icon == null || icon.Width < 16 || icon.Height < 16)
+                    throw new InvalidOperationException("应用图标未正确嵌入");
+            }
         }
 
         private static int RenderPreviews()

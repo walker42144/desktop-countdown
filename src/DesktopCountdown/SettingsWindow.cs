@@ -29,6 +29,8 @@ namespace DesktopCountdown
         private readonly TextBlock previewTitle;
         private readonly TextBlock previewDigits;
         private readonly Border previewBorder;
+        private readonly Grid previewDecoration;
+        private readonly Border previewAccent;
 
         public AppSettings Result { get { return working; } }
 
@@ -36,6 +38,7 @@ namespace DesktopCountdown
         {
             working = source.Clone();
             Title = "桌面倒计时设置";
+            Icon = IconFactory.CreateWindowIcon();
             Width = 580;
             Height = 760;
             MinWidth = 520;
@@ -110,7 +113,11 @@ namespace DesktopCountdown
                 Padding = new Thickness(20),
                 Margin = new Thickness(0, 4, 0, 10)
             };
+            Grid previewRoot = new Grid();
+            previewDecoration = new Grid { IsHitTestVisible = false };
+            Panel.SetZIndex(previewDecoration, 0);
             StackPanel previewStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+            Panel.SetZIndex(previewStack, 1);
             previewTitle = new TextBlock
             {
                 Text = working.Title,
@@ -125,10 +132,21 @@ namespace DesktopCountdown
                 FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
+            previewAccent = new Border
+            {
+                Width = 42,
+                Height = 2,
+                CornerRadius = new CornerRadius(1),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 5, 0, 5)
+            };
             Typography.SetNumeralAlignment(previewDigits, FontNumeralAlignment.Tabular);
             previewStack.Children.Add(previewTitle);
+            previewStack.Children.Add(previewAccent);
             previewStack.Children.Add(previewDigits);
-            previewBorder.Child = previewStack;
+            previewRoot.Children.Add(previewDecoration);
+            previewRoot.Children.Add(previewStack);
+            previewBorder.Child = previewRoot;
             AddWideRow(form, ref row, previewBorder);
 
             scroll.Content = form;
@@ -256,7 +274,7 @@ namespace DesktopCountdown
             if (double.TryParse(digitSizeBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out size) && size >= 32 && size <= 240)
                 previewDigits.FontSize = Math.Min(size, 62);
             ThemeDefinition theme = themeBox.SelectedItem as ThemeDefinition;
-            ThemeCatalog.ApplyPreview(previewBorder, previewTitle, previewDigits,
+            ThemeCatalog.ApplyPreview(previewBorder, previewDecoration, previewAccent, previewTitle, previewDigits,
                 theme == null ? ThemeCatalog.DefaultTheme : theme.Key);
         }
 

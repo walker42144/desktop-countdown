@@ -2,14 +2,18 @@
 
 一款简洁、准确、可根据壁纸自动配色的 Windows 桌面倒计时。默认采用 MiSans 中文标题和 Bahnschrift SemiBold 等宽数字。
 
-![极简玻璃主题预览](docs/images/preview.png)
+![应用图标](docs/images/logo.png)
+
+![十套艺术主题](docs/images/theme-gallery.png)
 
 ## 功能
 
 - 按目标绝对时间重新计算，休眠或界面卡顿不会产生累计减秒误差。
 - 精确显示到秒，通过 NTP 自动校准；网络不可用时安全回退到系统时间。
 - 分析倒计时所在壁纸区域，自动选择深色或浅色文字。
-- 五套内置风格：极简玻璃、现代留白、编辑部海报、暮色渐变、东方墨韵。
+- 十套内置风格：极简玻璃、现代留白、编辑部海报、暮色星轨、东方墨韵、深海夜航、青瓷晨雾、霓虹夜行、琥珀胶片、蓝图刻度。
+- 每套主题拥有独立装饰构图，包括侧边标记、轨道圆环、印章、霓虹框、胶片孔和蓝图刻度等。
+- 正式多尺寸应用图标已嵌入 EXE、设置窗口和系统托盘。
 - 默认字体为 MiSans Regular 和 Bahnschrift SemiBold，支持选择其他系统字体和字号。
 - 支持拖动、位置记忆、屏幕边缘吸附、锁定和鼠标穿透。
 - 支持托盘操作、快速换主题、置顶、显示/隐藏及可选开机启动。
@@ -21,7 +25,7 @@
 从 [Releases](https://github.com/walker42144/desktop-countdown/releases/latest) 下载：
 
 - `DesktopCountdown.exe`：直接运行版。
-- `DesktopCountdown-v0.1.1-portable.zip`：包含程序和中文使用说明的便携包。
+- `DesktopCountdown-v0.2.0-portable.zip`：包含程序和中文使用说明的便携包。
 
 当前发布文件未进行商业代码签名，因此 Windows 首次运行时可能显示未知发布者提示。
 

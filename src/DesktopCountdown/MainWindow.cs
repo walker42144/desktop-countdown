@@ -33,6 +33,8 @@ namespace DesktopCountdown
         private readonly Run unitRun;
         private readonly Run timeRun;
         private readonly Border accentLine;
+        private readonly Grid decorationLayer;
+        private TextBlock liveThemeLabel;
         private readonly DropShadowEffect shadow;
         private readonly System.Windows.Forms.NotifyIcon trayIcon;
         private readonly System.Windows.Forms.ToolStripMenuItem lockTrayItem;
@@ -50,6 +52,7 @@ namespace DesktopCountdown
             clock = new AccurateClock(settings.NtpServer);
 
             Title = "桌面倒计时";
+            Icon = IconFactory.CreateWindowIcon();
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
             AllowsTransparency = true;
@@ -76,7 +79,16 @@ namespace DesktopCountdown
                 Effect = shadow
             };
 
+            Grid cardRoot = new Grid();
+            decorationLayer = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                IsHitTestVisible = false
+            };
+            Panel.SetZIndex(decorationLayer, 0);
             StackPanel stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+            Panel.SetZIndex(stack, 1);
             titleText = new TextBlock
             {
                 TextAlignment = TextAlignment.Center,
@@ -110,7 +122,9 @@ namespace DesktopCountdown
             stack.Children.Add(titleText);
             stack.Children.Add(accentLine);
             stack.Children.Add(countdownText);
-            surface.Child = stack;
+            cardRoot.Children.Add(decorationLayer);
+            cardRoot.Children.Add(stack);
+            surface.Child = cardRoot;
             Grid shell = new Grid { Margin = new Thickness(ShadowGutter) };
             shell.Children.Add(surface);
             Content = shell;
@@ -263,6 +277,7 @@ namespace DesktopCountdown
                 dayRun.Text = "---";
                 unitRun.Text = " 天  ";
                 timeRun.Text = settings.ShowSeconds ? "--:--:--" : "--:--";
+                UpdateLiveThemeLabel();
                 ToolTip = BuildTooltip();
                 return;
             }
@@ -282,6 +297,7 @@ namespace DesktopCountdown
             timeRun.Text = settings.ShowSeconds
                 ? string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", remaining.Hours, remaining.Minutes, remaining.Seconds)
                 : string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}", remaining.Hours, remaining.Minutes);
+            UpdateLiveThemeLabel();
             ToolTip = BuildTooltip();
         }
 
@@ -289,7 +305,7 @@ namespace DesktopCountdown
         {
             DateTime now = clock.LocalNow;
             double milliseconds;
-            if (settings.ShowSeconds)
+            if (settings.ShowSeconds || string.Equals(settings.ThemeName, "Air", StringComparison.OrdinalIgnoreCase))
                 milliseconds = 1000 - now.Millisecond + 12;
             else
                 milliseconds = (60 - now.Second) * 1000 - now.Millisecond + 12;
@@ -342,15 +358,20 @@ namespace DesktopCountdown
             SolidColorBrush brush = new SolidColorBrush(foreground);
             brush.Freeze();
             titleText.Foreground = brush;
+            titleText.Opacity = theme.TitleOpacity;
             countdownText.Foreground = brush;
+            countdownText.FontWeight = theme.DigitWeight;
             shadow.Color = shadowColor;
             shadow.Opacity = theme.ShadowOpacity;
             surface.CornerRadius = new CornerRadius(theme.CornerRadius);
             surface.Padding = theme.Padding;
             surface.BorderBrush = theme.Border;
-            surface.BorderThickness = theme.Border == Brushes.Transparent ? new Thickness(0) : new Thickness(1);
+            surface.BorderThickness = new Thickness(theme.BorderThickness);
             accentLine.Background = theme.Accent;
-            accentLine.Visibility = theme.Accent == Brushes.Transparent ? Visibility.Collapsed : Visibility.Visible;
+            accentLine.Width = theme.AccentWidth;
+            accentLine.Height = theme.AccentHeight;
+            accentLine.Visibility = theme.AccentWidth <= 0 ? Visibility.Collapsed : Visibility.Visible;
+            liveThemeLabel = ThemeDecorations.Apply(decorationLayer, theme, foreground, FormatCurrentDateTime());
             if (!theme.AdaptiveToWallpaper)
                 surface.Background = theme.Background;
             else if (theme.TransparentWhenCalm && !useBackdrop)
@@ -362,6 +383,16 @@ namespace DesktopCountdown
             else
                 surface.Background = theme.Background;
             ToolTip = BuildTooltip();
+        }
+
+        private string FormatCurrentDateTime()
+        {
+            return clock.LocalNow.ToString("yyyy-MM-dd  HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        private void UpdateLiveThemeLabel()
+        {
+            if (liveThemeLabel != null) liveThemeLabel.Text = FormatCurrentDateTime();
         }
 
         private DrawingRectangle GetPhysicalBounds()
@@ -449,6 +480,8 @@ namespace DesktopCountdown
         {
             settings.ThemeName = themeKey;
             UpdateAppearance();
+            countdownTimer.Stop();
+            ScheduleNextTick();
             UpdateTrayChecks();
             SaveSettings(false);
         }

@@ -10,12 +10,16 @@ $artifactRoot = Join-Path $projectRoot 'artifacts'
 $frameworkRoot = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
 $wpfRoot = Join-Path $frameworkRoot 'WPF'
 $compiler = Join-Path $frameworkRoot 'csc.exe'
+$brandGenerator = Join-Path $projectRoot 'tools\Generate-BrandAssets.ps1'
+$applicationIcon = Join-Path $projectRoot 'assets\DesktopCountdown.ico'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
     throw '未找到系统 C# 编译器。请安装 .NET Framework 4.8 开发工具或 .NET SDK。'
 }
 
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+& $brandGenerator -ProjectRoot $projectRoot
+if (-not (Test-Path -LiteralPath $applicationIcon)) { throw '应用图标生成失败。' }
 $output = Join-Path $artifactRoot 'DesktopCountdown.exe'
 $pdb = Join-Path $artifactRoot 'DesktopCountdown.pdb'
 $manifest = Join-Path $sourceRoot 'app.manifest'
@@ -42,6 +46,7 @@ $compilerArguments = @(
     "/out:$output",
     "/pdb:$pdb",
     "/win32manifest:$manifest"
+    "/win32icon:$applicationIcon"
 )
 $compilerArguments += $references | ForEach-Object { "/reference:$_" }
 $compilerArguments += $sources
