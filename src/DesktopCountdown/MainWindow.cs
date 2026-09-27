@@ -327,25 +327,11 @@ namespace DesktopCountdown
             bool elapsed = remaining < TimeSpan.Zero;
             if (elapsed) remaining = remaining.Negate();
 
-            if (settings.CountdownFormat != DisplayFormats.DefaultCountdown)
-            {
-                dayRun.Text = DisplayFormats.Countdown(settings.CountdownFormat, remaining, elapsed, settings.ShowSeconds);
-                unitRun.Text = string.Empty;
-                timeRun.Text = string.Empty;
-                UpdateLiveThemeLabel();
-                ToolTip = BuildTooltip();
-                return;
-            }
-
-            long totalDays = (long)Math.Floor(remaining.TotalDays);
-            string daysText = totalDays < 1000
-                ? totalDays.ToString("000", CultureInfo.InvariantCulture)
-                : totalDays.ToString(CultureInfo.InvariantCulture);
-            dayRun.Text = elapsed ? "+" + daysText : daysText;
-            unitRun.Text = " 天  ";
-            timeRun.Text = settings.ShowSeconds
-                ? string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", remaining.Hours, remaining.Minutes, remaining.Seconds)
-                : string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}", remaining.Hours, remaining.Minutes);
+            CountdownDisplay display = DisplayFormats.RenderCountdown(settings.CountdownFormat,
+                remaining, elapsed, settings.ShowSeconds);
+            dayRun.Text = display.Days;
+            unitRun.Text = display.Unit;
+            timeRun.Text = display.Time;
             UpdateLiveThemeLabel();
             ToolTip = BuildTooltip();
         }
@@ -354,8 +340,7 @@ namespace DesktopCountdown
         {
             DateTime now = clock.LocalNow;
             double milliseconds;
-            bool countdownSeconds = settings.ShowSeconds && settings.CountdownFormat == DisplayFormats.DefaultCountdown ||
-                settings.CountdownFormat != DisplayFormats.DefaultCountdown && settings.CountdownFormat.Contains("{seconds");
+            bool countdownSeconds = DisplayFormats.CountdownNeedsSeconds(settings.CountdownFormat, settings.ShowSeconds);
             bool clockSeconds = string.Equals(settings.ThemeName, "Air", StringComparison.OrdinalIgnoreCase) &&
                 DisplayFormats.ClockNeedsSeconds(settings.ClockFormat);
             if (countdownSeconds || clockSeconds)

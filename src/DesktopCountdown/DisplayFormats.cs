@@ -5,6 +5,24 @@ using System.Text.RegularExpressions;
 
 namespace DesktopCountdown
 {
+    internal sealed class CountdownDisplay
+    {
+        internal readonly string Days;
+        internal readonly string Unit;
+        internal readonly string Time;
+        internal readonly bool NeedsSeconds;
+
+        internal CountdownDisplay(string days, string unit, string time, bool needsSeconds)
+        {
+            Days = days;
+            Unit = unit;
+            Time = time;
+            NeedsSeconds = needsSeconds;
+        }
+
+        internal string Text { get { return Days + Unit + Time; } }
+    }
+
     public static class DisplayFormats
     {
         public const string DefaultCountdown = SettingsDefaults.DefaultCountdown;
@@ -14,12 +32,18 @@ namespace DesktopCountdown
 
         public static string Countdown(string format, TimeSpan duration, bool elapsed, bool showSeconds)
         {
+            return RenderCountdown(format, duration, elapsed, showSeconds).Text;
+        }
+
+        internal static CountdownDisplay RenderCountdown(string format, TimeSpan duration, bool elapsed, bool showSeconds)
+        {
             string template = string.IsNullOrEmpty(format) ? DefaultCountdown : format;
-            if (!showSeconds && template == DefaultCountdown)
+            bool isDefault = template == DefaultCountdown;
+            if (!showSeconds && isDefault)
                 template = "{days:3} 天  {hours:2}:{minutes:2}";
             long days = (long)Math.Floor(duration.TotalDays);
             long totalHours = (long)Math.Floor(duration.TotalHours);
-            return Token.Replace(template, match =>
+            string rendered = Token.Replace(template, match =>
             {
                 string name = match.Groups[1].Value;
                 if (name == "sign") return elapsed ? "+" : string.Empty;
@@ -34,10 +58,29 @@ namespace DesktopCountdown
                     default: throw new FormatException("未知倒计时占位符：" + name);
                 }
                 int width = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 1;
-                if (name == "days" && template == DefaultCountdown) width = 3;
+                if (name == "days" && isDefault) width = 3;
                 string number = value.ToString("D" + width, CultureInfo.InvariantCulture);
-                return name == "days" && elapsed && template == DefaultCountdown ? "+" + number : number;
+                return name == "days" && elapsed && isDefault ? "+" + number : number;
             });
+            bool needsSeconds = false;
+            foreach (Match match in Token.Matches(template))
+            {
+                if (match.Groups[1].Value == "seconds")
+                {
+                    needsSeconds = true;
+                    break;
+                }
+            }
+            if (!isDefault) return new CountdownDisplay(rendered, string.Empty, string.Empty, needsSeconds);
+            const string separator = " 天  ";
+            int separatorAt = rendered.IndexOf(separator, StringComparison.Ordinal);
+            return new CountdownDisplay(rendered.Substring(0, separatorAt), separator,
+                rendered.Substring(separatorAt + separator.Length), needsSeconds);
+        }
+
+        internal static bool CountdownNeedsSeconds(string format, bool showSeconds)
+        {
+            return RenderCountdown(format, TimeSpan.Zero, false, showSeconds).NeedsSeconds;
         }
 
         public static bool TryValidateCountdown(string format, out string error)
