@@ -1,12 +1,18 @@
 [CmdletBinding()]
 param(
-    [switch]$SkipSmokeTest
+    [switch]$SkipSmokeTest,
+    [switch]$TreatWarningsAsErrors,
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $sourceRoot = Join-Path $projectRoot 'src\DesktopCountdown'
-$artifactRoot = Join-Path $projectRoot 'artifacts'
+$artifactRoot = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $projectRoot 'artifacts'
+} else {
+    [System.IO.Path]::GetFullPath($OutputDirectory)
+}
 $frameworkRoot = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
 $wpfRoot = Join-Path $frameworkRoot 'WPF'
 $compiler = Join-Path $frameworkRoot 'csc.exe'
@@ -48,6 +54,7 @@ $compilerArguments = @(
     "/win32manifest:$manifest"
     "/win32icon:$applicationIcon"
 )
+if ($TreatWarningsAsErrors) { $compilerArguments += '/warnaserror+' }
 $compilerArguments += $references | ForEach-Object { "/reference:$_" }
 $compilerArguments += $sources
 
