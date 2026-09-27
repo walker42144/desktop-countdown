@@ -29,10 +29,9 @@
 
 从 [Releases](https://github.com/walker42144/desktop-countdown/releases/latest) 下载：
 
-- `DesktopCountdown.exe`：直接运行版。
-- `DesktopCountdown-v0.2.0-portable.zip`：包含程序和中文使用说明的便携包。
+- `DesktopCountdown-v0.3.1.exe`：v0.3.1 单文件直接运行版。
 
-v0.3.1 已在本地构建，尚未发布到 GitHub。
+v0.3.1 的自动检查已通过；双屏 150% 缩放下的实机复测仍待完成。
 
 当前发布文件未进行商业代码签名，因此 Windows 首次运行时可能显示未知发布者提示。
 
