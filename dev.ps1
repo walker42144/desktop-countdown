@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DesktopHost.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'MotionSession.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsLayout.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1', 'ThemeContract.Tests.ps1', 'WallpaperColor.Tests.ps1')
+    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'MotionSession.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsLayout.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1', 'ThemeContract.Tests.ps1', 'WallpaperColor.Tests.ps1', 'WindowBehavior.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -75,17 +75,11 @@ function Invoke-Test {
         'rejects a source file omitted from the project list',
         'rejects duplicate project compile entries',
         'rejects project entries whose source file is missing',
-        'keeps the public desktop-host signatures',
-        'attaches only after all operations and restores the original state on detach',
-        'rolls back each side-effectful attach failure',
-        'does not mutate a window when host or capture is unavailable',
-        'refuses a desktop host that cannot display the widget center',
-        'refuses cross-process parenting with incompatible DPI contexts',
+        'removes desktop parenting while retaining click-through',
+        'applies and clears click-through bits without changing unrelated styles',
+        'rolls back a failed click-through write and ignores an unreadable window',
+        'normalizes the legacy desktop-mode setting to ordinary mode',
         'detects a window outside both monitor working areas',
-        'prefers a visible top-level window when detach fails',
-        'retains recovery state when even top-level restoration fails',
-        'recovers after the wallpaper worker disappears',
-        'restores the extended style when click-through fails',
         'rotates into one bounded archive',
         'does not persist exception messages or path-shaped contexts',
         'returns failure without throwing when the directory is unwritable',

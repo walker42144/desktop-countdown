@@ -12,8 +12,8 @@ using System.Windows.Media.Imaging;
 [assembly: AssemblyDescription("简洁、准确、可随壁纸自适应的 Windows 桌面倒计时")]
 [assembly: AssemblyCompany("walker42144")]
 [assembly: AssemblyProduct("Desktop Countdown")]
-[assembly: AssemblyVersion("0.3.0.0")]
-[assembly: AssemblyFileVersion("0.3.0.0")]
+[assembly: AssemblyVersion("0.3.1.0")]
+[assembly: AssemblyFileVersion("0.3.1.0")]
 [assembly: ComVisible(false)]
 
 namespace DesktopCountdown

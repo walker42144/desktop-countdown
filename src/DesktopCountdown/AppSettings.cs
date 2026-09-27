@@ -74,6 +74,8 @@ namespace DesktopCountdown
 
         public void Validate()
         {
+            // Keep reading the legacy JSON field, but never reactivate the removed desktop layer.
+            DesktopMode = false;
             if (string.IsNullOrWhiteSpace(Title)) Title = "距离目标时刻还有";
             if (!HasConfiguredTarget && !TargetNeedsRepair && string.IsNullOrWhiteSpace(TargetLocal))
                 TargetLocal = DateTime.Now.Date.AddDays(30).AddHours(9).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);

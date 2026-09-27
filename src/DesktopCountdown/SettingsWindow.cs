@@ -47,7 +47,6 @@ namespace DesktopCountdown
         private readonly TextBox manualColorBox;
         private readonly CheckBox lockedBox;
         private readonly CheckBox topmostBox;
-        private readonly CheckBox desktopModeBox;
         private readonly CheckBox startupBox;
         private readonly TextBox ntpBox;
         private readonly ComboBox countdownPresetBox;
@@ -87,6 +86,7 @@ namespace DesktopCountdown
         public SettingsWindow(AppSettings source, string clockStatus, bool? darkOverride = null)
         {
             working = source.Clone();
+            working.DesktopMode = false;
             Title = "桌面倒计时设置";
             Icon = IconFactory.CreateWindowIcon();
             Width = 950;
@@ -130,7 +130,6 @@ namespace DesktopCountdown
             manualColorBox = new TextBox { Text = working.ManualForeground, IsEnabled = !working.AutoColor };
             lockedBox = new CheckBox { Content = "锁定后启用鼠标穿透", IsChecked = working.Locked };
             topmostBox = new CheckBox { Content = "始终置顶", IsChecked = working.AlwaysOnTop };
-            desktopModeBox = new CheckBox { Content = "挂接到桌面层（实验性）", IsChecked = working.DesktopMode };
             startupBox = new CheckBox { Content = "登录 Windows 后自动启动", IsChecked = working.StartWithWindows };
             ntpBox = new TextBox { Text = working.NtpServer };
             countdownPresetBox = new ComboBox();
@@ -849,7 +848,6 @@ namespace DesktopCountdown
             working.ManualForeground = manualColorBox.Text.Trim();
             working.Locked = lockedBox.IsChecked == true;
             working.AlwaysOnTop = topmostBox.IsChecked == true;
-            working.DesktopMode = desktopModeBox.IsChecked == true;
             working.StartWithWindows = startupBox.IsChecked == true;
             working.NtpServer = string.IsNullOrWhiteSpace(ntpBox.Text) ? "time.windows.com" : ntpBox.Text.Trim();
             working.CountdownFormat = countdownFormatBox.Text;

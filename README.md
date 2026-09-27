@@ -22,7 +22,7 @@
 - 设置页使用 Windows 系统强调色，并在深色模式下自动调整其亮度；支持时启用系统 Mica 窗口背景效果。
 - 支持拖动、位置记忆、屏幕边缘吸附、锁定和鼠标穿透。
 - 支持托盘操作、快速换主题、置顶、显示/隐藏及普通启动或登录任务启动。
-- 支持普通透明窗口和实验性 Windows 桌面层模式。
+- 始终使用普通透明窗口；此前实验性的桌面层挂接功能已移除。
 - 无账户、无遥测；除用户配置的 NTP 校时外，不主动联网。
 
 ## 下载
@@ -32,7 +32,7 @@
 - `DesktopCountdown.exe`：直接运行版。
 - `DesktopCountdown-v0.2.0-portable.zip`：包含程序和中文使用说明的便携包。
 
-v0.3.0 正在本地测试，尚未发布到 GitHub。
+v0.3.1 已在本地构建，尚未发布到 GitHub。
 
 当前发布文件未进行商业代码签名，因此 Windows 首次运行时可能显示未知发布者提示。
 
@@ -69,7 +69,7 @@ src/DesktopCountdown/
 ├─ DisplayFormats.cs        倒计时与日期时间格式
 ├─ MotionPlanner.cs         防烧屏位移路径
 ├─ StartupService.cs        登录启动方式
-├─ DesktopHostService.cs    桌面层和鼠标穿透
+├─ ClickThroughService.cs   锁定后的鼠标穿透
 ├─ EdgeSnapCalculator.cs    可见边缘吸附
 ├─ FluentTheme.cs           设置页主题色板与系统强调色
 ├─ MainWindow.cs            倒计时主窗口

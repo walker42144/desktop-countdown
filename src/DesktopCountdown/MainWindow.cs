@@ -24,7 +24,7 @@ namespace DesktopCountdown
         private const double EdgeSnapDistance = 32;
         private AppSettings settings;
         private readonly AccurateClock clock;
-        private readonly DesktopHostService desktopHost = new DesktopHostService();
+        private readonly ClickThroughService clickThrough = new ClickThroughService();
         private readonly DispatcherTimer countdownTimer = new DispatcherTimer(DispatcherPriority.Background);
         private readonly DispatcherTimer appearanceTimer = new DispatcherTimer(DispatcherPriority.Background);
         private readonly MotionSession motion = new MotionSession();
@@ -42,13 +42,11 @@ namespace DesktopCountdown
         private readonly DropShadowEffect shadow;
         private readonly System.Windows.Forms.NotifyIcon trayIcon;
         private readonly System.Windows.Forms.ToolStripMenuItem lockTrayItem;
-        private readonly System.Windows.Forms.ToolStripMenuItem desktopTrayItem;
         private readonly System.Windows.Forms.ToolStripMenuItem topmostTrayItem;
         private readonly System.Windows.Forms.ToolStripMenuItem visibilityTrayItem;
         private readonly IList<System.Windows.Forms.ToolStripMenuItem> themeTrayItems = new List<System.Windows.Forms.ToolStripMenuItem>();
         private bool exiting;
         private bool sourceReady;
-        private bool desktopModeTransition;
         private string wallpaperStatus = "尚未分析壁纸";
 
         public MainWindow(AppSettings initialSettings)
@@ -163,9 +161,6 @@ namespace DesktopCountdown
             lockTrayItem = new System.Windows.Forms.ToolStripMenuItem("锁定并穿透");
             lockTrayItem.Click += delegate { RunOnUi(ToggleLock); };
             trayMenu.Items.Add(lockTrayItem);
-            desktopTrayItem = new System.Windows.Forms.ToolStripMenuItem("桌面层模式");
-            desktopTrayItem.Click += delegate { RunOnUi(ToggleDesktopMode); };
-            trayMenu.Items.Add(desktopTrayItem);
             topmostTrayItem = new System.Windows.Forms.ToolStripMenuItem("始终置顶");
             topmostTrayItem.Click += delegate { RunOnUi(ToggleTopmost); };
             trayMenu.Items.Add(topmostTrayItem);
@@ -217,8 +212,7 @@ namespace DesktopCountdown
             SourceInitialized += delegate { sourceReady = true; };
             LocationChanged += delegate
             {
-                if (!motion.IsApplying && !desktopModeTransition && !desktopHost.IsAttached)
-                    motion.SetAnchor(Left, Top);
+                if (!motion.IsApplying) motion.SetAnchor(Left, Top);
                 QueueAppearanceUpdate();
             };
             SizeChanged += delegate { QueueAppearanceUpdate(); };
@@ -259,7 +253,6 @@ namespace DesktopCountdown
 
         private void ApplySettingsToView()
         {
-            bool desktopModeUnavailable = false;
             titleText.Text = TargetHeading(settings);
             titleText.FontFamily = SafeFont(settings.TitleFontFamily, "MiSans");
             titleText.FontSize = settings.TitleFontSize;
@@ -269,32 +262,15 @@ namespace DesktopCountdown
             countdownText.FontWeight = FontWeights.SemiBold;
             unitRun.FontFamily = SafeFont(settings.TitleFontFamily, "MiSans");
             unitRun.FontSize = settings.DigitFontSize * 0.48;
-            Topmost = settings.AlwaysOnTop && !settings.DesktopMode;
+            Topmost = settings.AlwaysOnTop;
             clock.ChangeServer(settings.NtpServer);
 
-            if (sourceReady)
-            {
-                bool requested = settings.DesktopMode;
-                bool attached;
-                desktopModeTransition = true;
-                try { attached = desktopHost.ApplyDesktopMode(this, requested); }
-                finally { desktopModeTransition = false; }
-                if (requested && !attached)
-                {
-                    settings.DesktopMode = false;
-                    Topmost = settings.AlwaysOnTop;
-                    desktopModeUnavailable = true;
-                }
-                desktopHost.ApplyClickThrough(this, settings.Locked);
-            }
+            if (sourceReady) clickThrough.Apply(this, settings.Locked);
 
             UpdateCountdown();
             QueueAppearanceUpdate();
             UpdateTrayChecks();
             ConfigureMotion();
-            if (desktopModeUnavailable)
-                MessageBox.Show("当前桌面层宿主不可用或与显示缩放不兼容，已保持普通窗口模式。",
-                    "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private static string TargetHeading(AppSettings value)
@@ -601,17 +577,8 @@ namespace DesktopCountdown
                 trial.PlannedDistancePixels = MoveOnceCore(trial.Mode, trial.AmplitudePixels,
                     trial.TransitionMilliseconds, true);
             };
-            if (!desktopHost.IsAttached)
-            {
-                dialog.Owner = this;
-                dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            }
-            else
-            {
-                Point center = PointToScreen(new Point(ActualWidth / 2, ActualHeight / 2));
-                dialog.OpenOnScreen(System.Windows.Forms.Screen.FromPoint(
-                    new System.Drawing.Point((int)center.X, (int)center.Y)));
-            }
+            dialog.Owner = this;
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
             bool? accepted = dialog.ShowDialog();
             if (accepted == true)
             {
@@ -635,22 +602,9 @@ namespace DesktopCountdown
         private void ToggleLock()
         {
             settings.Locked = !settings.Locked;
-            desktopHost.ApplyClickThrough(this, settings.Locked);
+            clickThrough.Apply(this, settings.Locked);
             UpdateTrayChecks();
             SaveSettings(false);
-        }
-
-        private void ToggleDesktopMode()
-        {
-            bool enable = !desktopHost.IsAttached;
-            settings.DesktopMode = enable;
-            ApplySettingsToView();
-            if (!desktopHost.IsAttached)
-                EnsureVisiblePosition();
-            SaveSettings(false);
-            if (!enable && desktopHost.IsAttached)
-                MessageBox.Show("无法从桌面层恢复。关闭状态已保存；请退出程序并重新启动，窗口将以普通模式打开。",
-                    "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void ToggleTopmost()
@@ -690,7 +644,6 @@ namespace DesktopCountdown
         private void UpdateTrayChecks()
         {
             lockTrayItem.Checked = settings.Locked;
-            desktopTrayItem.Checked = settings.DesktopMode;
             topmostTrayItem.Checked = settings.AlwaysOnTop;
             visibilityTrayItem.Text = IsVisible ? "隐藏" : "显示";
             IList<ThemeDefinition> themes = ThemeCatalog.All();
@@ -753,7 +706,7 @@ namespace DesktopCountdown
 
         private void SnapVisibleSurfaceToNearestEdge()
         {
-            if (!IsLoaded || desktopHost.IsAttached || ActualWidth <= ShadowGutter * 2 || ActualHeight <= ShadowGutter * 2)
+            if (!IsLoaded || ActualWidth <= ShadowGutter * 2 || ActualHeight <= ShadowGutter * 2)
                 return;
 
             try
@@ -838,7 +791,6 @@ namespace DesktopCountdown
             trayIcon.Dispose();
             SystemEvents.UserPreferenceChanged -= SystemPreferenceChanged;
             SystemEvents.DisplaySettingsChanged -= SystemDisplaySettingsChanged;
-            if (desktopHost.IsAttached) desktopHost.ApplyDesktopMode(this, false);
             Close();
             Application.Current.Shutdown();
         }

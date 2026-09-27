@@ -49,7 +49,7 @@
     <Compile Include="src\DesktopCountdown\AccurateClock.cs" />
     <Compile Include="src\DesktopCountdown\ClockSource.cs" />
     <Compile Include="src\DesktopCountdown\AppSettings.cs" />
-    <Compile Include="src\DesktopCountdown\DesktopHostService.cs" />
+    <Compile Include="src\DesktopCountdown\ClickThroughService.cs" />
     <Compile Include="src\DesktopCountdown\DiagnosticLog.cs" />
     <Compile Include="src\DesktopCountdown\DisplayFormats.cs" />
     <Compile Include="src\DesktopCountdown\EdgeSnapCalculator.cs" />
@@ -58,7 +58,6 @@
     <Compile Include="src\DesktopCountdown\MainWindow.cs" />
     <Compile Include="src\DesktopCountdown\MotionPlanner.cs" />
     <Compile Include="src\DesktopCountdown\MotionSession.cs" />
-    <Compile Include="src\DesktopCountdown\NativeWindowOps.cs" />
     <Compile Include="src\DesktopCountdown\Program.cs" />
     <Compile Include="src\DesktopCountdown\PreviewRenderer.cs" />
     <Compile Include="src\DesktopCountdown\SettingsStore.cs" />

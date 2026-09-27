@@ -56,7 +56,6 @@ namespace DesktopCountdown
             AddSection(form, ref row, "窗口行为");
             AddWideRow(form, ref row, lockedBox);
             AddWideRow(form, ref row, topmostBox);
-            AddWideRow(form, ref row, desktopModeBox);
             AddWideRow(form, ref row, startupBox);
             AddLabeledRow(form, ref row, "登录启动方式", startupModeBox);
             AddHint(form, ref row, "登录任务在当前用户桌面中运行，启动前短暂等待系统桌面准备；无需后台常驻服务。");
