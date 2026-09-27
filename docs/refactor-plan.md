@@ -63,9 +63,9 @@
 ## R05：登录启动状态一致性
 
 - **目标**：让“配置文件、注册表、计划任务、界面所示状态”在成功及失败时可核对、可补偿。
-- **背景**：P1-01。
-- **修改范围（最多 6 个文件）**：`StartupService.cs`、`MainWindow.cs`、`DesktopCountdown.csproj`、`tools/Test-StartupTask.ps1`、新增 `StartupBackend.cs`、新增 `tests/StartupService.Tests.ps1`。
-- **具体步骤**：先用假注册表/假任务后端覆盖每一步失败；增加内部实际状态读取和补偿策略；保持 `StartupService.Apply` 的公开签名；让保存错误准确指出已生效与未生效的部分。在隔离账户中验证一次性任务创建、查询和清理。
+- **背景**：P1-01、N-04。
+- **修改范围（最多 7 个文件）**：`StartupService.cs`、`MainWindow.cs`、`DesktopCountdown.csproj`、`dev.ps1`、`tools/Test-StartupTask.ps1`、新增 `StartupBackend.cs`、新增 `tests/StartupService.Tests.ps1`。
+- **具体步骤**：先用假注册表/假任务后端覆盖每一步失败；增加内部实际状态读取和补偿策略；保持 `StartupService.Apply` 的公开签名；让保存错误准确指出已生效与未生效的部分；在 `dev.ps1` 中登记新测试文件和用例标识，保留固定数量门禁。在隔离账户中验证一次性任务创建、查询和清理。
 - **验收命令**：`pwsh -File .\dev.ps1 check`；在隔离测试账户中运行 `pwsh -File .\tools\Test-StartupTask.ps1 -ApplicationPath .\artifacts\baseline-build\DesktopCountdown.exe`，并确认测试任务已清理。
 - **风险**：高。
 - **回滚方式**：回滚本 PR；在测试账户中按变更前记录的模式恢复启动项并再次查询。不能仅靠代码回滚推断系统任务也已恢复。
@@ -194,7 +194,7 @@
 | R02 | 构建源码清单一致性 | 低 | 4 | R01 |
 | R03 | 配置默认值脱离展示模块 | 中 | 8 | R02 |
 | R04 | 配置损坏与保存恢复 | 中 | 6 | R03 |
-| R05 | 登录启动状态一致性 | 高 | 6 | R04 |
+| R05 | 登录启动状态一致性 | 高 | 7 | R04 |
 | R06 | 时间校准可验证性 | 高 | 4 | R01 |
 | R07 | 目标时间解析边界 | 中 | 4 | R04、R06 |
 | R08 | 倒计时格式单一入口 | 中 | 4 | R07 |
