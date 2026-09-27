@@ -15,7 +15,6 @@ Describe 'DesktopCountdown baseline' {
         (Get-Content -LiteralPath $resultPath -Raw).StartsWith('OK') | Should Be $true
     }
 
-    if (Test-Path -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\StartupService.cs')) {
     It 'writes task XML accepted by the Task Scheduler parser' {
         $xmlPath = Join-Path ([System.IO.Path]::GetTempPath()) ('DesktopCountdown-Baseline-' + [Guid]::NewGuid().ToString('N') + '.xml')
         try {
@@ -41,6 +40,5 @@ Describe 'DesktopCountdown baseline' {
         finally {
             if ([System.IO.File]::Exists($xmlPath)) { [System.IO.File]::Delete($xmlPath) }
         }
-    }
     }
 }

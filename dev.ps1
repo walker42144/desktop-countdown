@@ -54,16 +54,37 @@ function Invoke-Typecheck {
 }
 
 function Invoke-Test {
-    $testOutput = Join-Path $artifactRoot 'baseline-test'
+    $testDirectory = if ($env:DESKTOP_COUNTDOWN_TEST_MISSING_STARTUP -eq '1') { 'negative-startup-test' } else { 'baseline-test' }
+    $testOutput = Join-Path $artifactRoot $testDirectory
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
+    $expectedFiles = @('Baseline.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
+    $actualFiles = @($testFiles | ForEach-Object Name)
+    $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
+    $unexpectedFiles = @($actualFiles | Where-Object { $expectedFiles -notcontains $_ })
+    if ($actualFiles.Count -ne $expectedFiles.Count -or $missingFiles.Count -gt 0 -or $unexpectedFiles.Count -gt 0) {
+        throw "测试文件清单不一致。缺少：$($missingFiles -join ', ')；意外出现：$($unexpectedFiles -join ', ')。"
+    }
+    $expectedTests = @(
+        'runs the built-in smoke checks',
+        'renders all theme previews',
+        'writes task XML accepted by the Task Scheduler parser',
+        'fails when the required startup module is missing',
+        'returns a nonzero test command exit code when startup is missing'
+    )
     $previous = $env:DESKTOP_COUNTDOWN_TEST_EXE
     try {
         $env:DESKTOP_COUNTDOWN_TEST_EXE = Join-Path $testOutput 'DesktopCountdown.exe'
-        $result = Invoke-Pester -Script (Join-Path $projectRoot 'tests\Baseline.Tests.ps1') -PassThru
-        if ($result.FailedCount -gt 0 -or $result.TotalCount -eq 0) {
-            throw "Tests failed: $($result.FailedCount) failed, $($result.TotalCount) total."
+        $result = Invoke-Pester -Script $testFiles.FullName -PassThru
+        $actualTests = @($result.TestResult | ForEach-Object Name)
+        $missingTests = @($expectedTests | Where-Object { $actualTests -notcontains $_ })
+        $unexpectedTests = @($actualTests | Where-Object { $expectedTests -notcontains $_ })
+        if ($result.FailedCount -gt 0 -or $result.PassedCount -ne $expectedTests.Count -or
+            $result.TotalCount -ne $expectedTests.Count -or $actualTests.Count -ne $expectedTests.Count -or
+            $missingTests.Count -gt 0 -or $unexpectedTests.Count -gt 0) {
+            throw "测试失败或用例清单发生变化：通过 $($result.PassedCount)，失败 $($result.FailedCount)，总数 $($result.TotalCount)。缺少：$($missingTests -join ', ')；意外出现：$($unexpectedTests -join ', ')。"
         }
         Write-Output "TEST_OK=$($result.TotalCount)"
     }
