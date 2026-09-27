@@ -34,7 +34,7 @@ namespace DesktopCountdown
 
     public static class ThemeCatalog
     {
-        public const string DefaultTheme = "MinimalGlass";
+        public const string DefaultTheme = SettingsDefaults.DefaultTheme;
 
         public static IList<ThemeDefinition> All()
         {

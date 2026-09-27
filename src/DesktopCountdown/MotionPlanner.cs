@@ -6,12 +6,12 @@ namespace DesktopCountdown
 {
     public static class MotionPlanner
     {
-        public const string NineGrid = "NineGrid";
-        public const string Orbit = "Orbit";
-        public const string Wander = "Wander";
-        public const string Tide = "Tide";
-        public const string EdgeWalk = "EdgeWalk";
-        public const string FarNear = "FarNear";
+        public const string NineGrid = SettingsDefaults.NineGrid;
+        public const string Orbit = SettingsDefaults.Orbit;
+        public const string Wander = SettingsDefaults.Wander;
+        public const string Tide = SettingsDefaults.Tide;
+        public const string EdgeWalk = SettingsDefaults.EdgeWalk;
+        public const string FarNear = SettingsDefaults.FarNear;
 
         private static readonly Point[] Grid = {
             new Point(-1,-1), new Point(1,0), new Point(-1,1), new Point(0,-1),

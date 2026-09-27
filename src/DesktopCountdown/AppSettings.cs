@@ -57,11 +57,11 @@ namespace DesktopCountdown
                 Left = 120,
                 Top = 120,
                 NtpServer = "time.windows.com"
-                ,ThemeName = ThemeCatalog.DefaultTheme,
-                CountdownFormat = DisplayFormats.DefaultCountdown,
-                ClockFormat = DisplayFormats.DefaultClock,
+                ,ThemeName = SettingsDefaults.DefaultTheme,
+                CountdownFormat = SettingsDefaults.DefaultCountdown,
+                ClockFormat = SettingsDefaults.DefaultClock,
                 MotionEnabled = false,
-                MotionMode = MotionPlanner.NineGrid,
+                MotionMode = SettingsDefaults.NineGrid,
                 MotionIntervalSeconds = 120,
                 MotionAmplitudePixels = 6,
                 MotionTransitionMilliseconds = 0,
@@ -81,13 +81,13 @@ namespace DesktopCountdown
             if (DigitFontSize < 32 || DigitFontSize > 240) DigitFontSize = 84;
             if (string.IsNullOrWhiteSpace(ManualForeground)) ManualForeground = "#FFF5F7FA";
             if (string.IsNullOrWhiteSpace(NtpServer)) NtpServer = "time.windows.com";
-            if (string.IsNullOrWhiteSpace(ThemeName)) ThemeName = ThemeCatalog.DefaultTheme;
+            if (string.IsNullOrWhiteSpace(ThemeName)) ThemeName = SettingsDefaults.DefaultTheme;
             if (double.IsNaN(Left) || double.IsInfinity(Left)) Left = 120;
             if (double.IsNaN(Top) || double.IsInfinity(Top)) Top = 120;
             string ignored;
-            if (!DisplayFormats.TryValidateCountdown(CountdownFormat, out ignored)) CountdownFormat = DisplayFormats.DefaultCountdown;
-            if (!DisplayFormats.TryValidateClock(ClockFormat, out ignored)) ClockFormat = DisplayFormats.DefaultClock;
-            if (Array.IndexOf(MotionPlanner.Modes, MotionMode) < 0) MotionMode = MotionPlanner.NineGrid;
+            if (!SettingsDefaults.TryValidateCountdown(CountdownFormat, out ignored)) CountdownFormat = SettingsDefaults.DefaultCountdown;
+            if (!SettingsDefaults.TryValidateClock(ClockFormat, out ignored)) ClockFormat = SettingsDefaults.DefaultClock;
+            if (!SettingsDefaults.IsMotionMode(MotionMode)) MotionMode = SettingsDefaults.NineGrid;
             if (MotionIntervalSeconds < 30 || MotionIntervalSeconds > 1800) MotionIntervalSeconds = 120;
             if (MotionAmplitudePixels < 1 || MotionAmplitudePixels > 20) MotionAmplitudePixels = 6;
             if (MotionTransitionMilliseconds < 0 || MotionTransitionMilliseconds > 2000) MotionTransitionMilliseconds = 0;
