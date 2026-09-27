@@ -99,6 +99,7 @@ namespace DesktopCountdown
             };
             StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             Button cancel = new Button { Content = "取消", Width = 92, Height = 34, Margin = new Thickness(0, 0, 10, 0), IsCancel = true };
+            cancel.Click += delegate { Close(); };
             Button save = new Button { Content = "保存", Width = 92, Height = 34, IsDefault = true };
             save.Background = theme.Accent;
             save.Foreground = theme.AccentText;

@@ -24,6 +24,12 @@ Describe 'DesktopCountdown settings layout' {
         $sections | Should Match 'save.Click \+= SaveClicked;'
     }
 
+    It 'closes the nonmodal preview from its cancel button' {
+        $sections = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\SettingsSections.cs') -Raw
+        $sections | Should Match 'Button cancel = new Button.*IsCancel = true'
+        $sections | Should Match 'cancel.Click \+= delegate \{ Close\(\); \};'
+    }
+
     It 'renders both light and dark settings screenshots' {
         $process = Start-Process -FilePath $env:DESKTOP_COUNTDOWN_TEST_EXE -ArgumentList '--render-settings' -Wait -PassThru -WindowStyle Hidden
         $process.ExitCode | Should Be 0

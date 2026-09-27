@@ -107,6 +107,7 @@ function Invoke-Test {
         'validates motion identifiers independently of the public mode array',
         'keeps the public settings window contract',
         'splits grouped layout and bindings out of the constructor',
+        'closes the nonmodal preview from its cancel button',
         'renders both light and dark settings screenshots',
         'uses defaults only when settings and recovery files are absent',
         'loads a valid file and creates a byte-identical backup on save',
