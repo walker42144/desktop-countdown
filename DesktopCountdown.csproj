@@ -58,6 +58,7 @@
     <Compile Include="src\DesktopCountdown\Program.cs" />
     <Compile Include="src\DesktopCountdown\PreviewRenderer.cs" />
     <Compile Include="src\DesktopCountdown\SettingsStore.cs" />
+    <Compile Include="src\DesktopCountdown\SettingsFileOps.cs" />
     <Compile Include="src\DesktopCountdown\SettingsDefaults.cs" />
     <Compile Include="src\DesktopCountdown\SettingsWindow.cs" />
     <Compile Include="src\DesktopCountdown\StartupService.cs" />

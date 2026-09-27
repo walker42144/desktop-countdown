@@ -36,7 +36,7 @@ namespace DesktopCountdown
             if (args != null && Array.Exists(args, a => string.Equals(a, "--settings-preview", StringComparison.OrdinalIgnoreCase)))
             {
                 Application previewApplication = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-                SettingsWindow preview = new SettingsWindow(SettingsStore.Load(), "设置页预览 · 不保存配置");
+                SettingsWindow preview = new SettingsWindow(LoadSettingsWithNotice(), "设置页预览 · 不保存配置");
                 foreach (System.Windows.Forms.Screen screen in System.Windows.Forms.Screen.AllScreens)
                     if (!screen.Primary) { preview.OpenOnScreen(screen); break; }
                 previewApplication.MainWindow = preview;
@@ -60,11 +60,23 @@ namespace DesktopCountdown
                 };
                 application.DispatcherUnhandledException += UnhandledException;
 
-                AppSettings settings = SettingsStore.Load();
+                AppSettings settings = LoadSettingsWithNotice();
                 MainWindow window = new MainWindow(settings);
                 application.MainWindow = window;
                 window.Show();
                 return application.Run();
+            }
+        }
+
+        private static AppSettings LoadSettingsWithNotice()
+        {
+            try { return SettingsStore.Load(); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("无法读取设置：" + ex.Message + "\n\n本次将使用默认设置。原设置文件、临时文件和备份均未删除；请检查：\n" +
+                    SettingsStore.SettingsPath + "\n" + SettingsStore.SettingsPath + ".bak",
+                    "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return AppSettings.CreateDefault();
             }
         }
 

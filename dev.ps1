@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $expectedFiles = @('Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'TestDiscovery.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -79,6 +79,13 @@ function Invoke-Test {
         'preserves legacy JSON values and supplies new defaults',
         'keeps public constants and removes display dependencies from settings',
         'validates motion identifiers independently of the public mode array',
+        'uses defaults only when settings and recovery files are absent',
+        'loads a valid file and creates a byte-identical backup on save',
+        'reports corrupt settings without changing original or backup bytes',
+        'refuses to save over a corrupt primary and preserves an existing backup',
+        'reports interrupted first save instead of hiding the temporary file',
+        'preserves original and backup bytes if replacement fails',
+        'does not treat an unreadable existing file as first run',
         'fails when the required startup module is missing',
         'returns a nonzero test command exit code when startup is missing'
     )
