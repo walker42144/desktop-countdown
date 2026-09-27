@@ -19,9 +19,51 @@ $compiler = Join-Path $frameworkRoot 'csc.exe'
 $brandGenerator = Join-Path $projectRoot 'tools\Generate-BrandAssets.ps1'
 $applicationIcon = Join-Path $projectRoot 'assets\DesktopCountdown.ico'
 
+function Resolve-CompileSources {
+    param(
+        [System.Xml.XmlDocument]$ProjectXml,
+        [string]$ProjectRoot,
+        [string]$SourceRoot
+    )
+
+    $namespace = New-Object System.Xml.XmlNamespaceManager($ProjectXml.NameTable)
+    $namespace.AddNamespace('msb', $ProjectXml.DocumentElement.NamespaceURI)
+    $entries = @($ProjectXml.SelectNodes('//msb:Compile', $namespace))
+    if ($entries.Count -eq 0) { throw '项目文件没有列出任何 C# 源码。' }
+
+    $sourcePrefix = [System.IO.Path]::GetFullPath($SourceRoot).TrimEnd([char[]]@('\', '/')) + [System.IO.Path]::DirectorySeparatorChar
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $sources = @()
+    foreach ($entry in $entries) {
+        $include = $entry.GetAttribute('Include')
+        if ([string]::IsNullOrWhiteSpace($include) -or [System.IO.Path]::IsPathRooted($include)) {
+            throw "项目源码路径无效：$include"
+        }
+        $source = [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot $include))
+        if (-not $source.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+            [System.IO.Path]::GetExtension($source) -ne '.cs') {
+            throw "项目源码路径不在源码目录内：$include"
+        }
+        if (-not $seen.Add($source)) { throw "项目源码清单包含重复项：$include" }
+        if (-not [System.IO.File]::Exists($source)) { throw "项目源码文件不存在：$include" }
+        $sources += $source
+    }
+
+    $diskFiles = @(Get-ChildItem -LiteralPath $SourceRoot -Filter '*.cs' -File -Recurse -Force | ForEach-Object FullName)
+    foreach ($file in $diskFiles) {
+        if (-not $seen.Contains($file)) { throw "源码文件未列入项目清单：$file" }
+    }
+    $sources | Sort-Object
+}
+
 if (-not (Test-Path -LiteralPath $compiler)) {
     throw '未找到系统 C# 编译器。请安装 .NET Framework 4.8 开发工具或 .NET SDK。'
 }
+
+$projectFile = Join-Path $projectRoot 'DesktopCountdown.csproj'
+$projectXml = New-Object System.Xml.XmlDocument
+$projectXml.Load($projectFile)
+$sources = @(Resolve-CompileSources -ProjectXml $projectXml -ProjectRoot $projectRoot -SourceRoot $sourceRoot)
 
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 & $brandGenerator -ProjectRoot $projectRoot
@@ -29,7 +71,6 @@ if (-not (Test-Path -LiteralPath $applicationIcon)) { throw '应用图标生成�
 $output = Join-Path $artifactRoot 'DesktopCountdown.exe'
 $pdb = Join-Path $artifactRoot 'DesktopCountdown.pdb'
 $manifest = Join-Path $sourceRoot 'app.manifest'
-$sources = Get-ChildItem -LiteralPath $sourceRoot -Filter '*.cs' | Sort-Object Name | ForEach-Object FullName
 
 $references = @(
     (Join-Path $frameworkRoot 'System.dll'),

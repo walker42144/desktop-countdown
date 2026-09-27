@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('Baseline.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $expectedFiles = @('Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'TestDiscovery.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -71,6 +71,10 @@ function Invoke-Test {
         'runs the built-in smoke checks',
         'renders all theme previews',
         'writes task XML accepted by the Task Scheduler parser',
+        'uses the project compile list for every source file',
+        'rejects a source file omitted from the project list',
+        'rejects duplicate project compile entries',
+        'rejects project entries whose source file is missing',
         'fails when the required startup module is missing',
         'returns a nonzero test command exit code when startup is missing'
     )
