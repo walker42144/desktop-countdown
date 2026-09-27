@@ -39,9 +39,9 @@
 ## R03：配置默认值脱离展示模块
 
 - **目标**：使 `AppSettings` 不再引用 WPF 主题目录、格式器或位移规划器来获取默认值。
-- **背景**：P2-01、P2-10；`AppSettings.cs` 的默认值与校验直接依赖三个展示相关模块。
-- **修改范围（最多 7 个文件）**：`AppSettings.cs`、`ThemeCatalog.cs`、`DisplayFormats.cs`、`MotionPlanner.cs`、`DesktopCountdown.csproj`、新增 `SettingsDefaults.cs`、新增 `tests/SettingsDefaults.Tests.ps1`。
-- **具体步骤**：先锁定默认 JSON 字段和值；抽出不引用 WPF 的内部默认值/合法标识契约；让现有公开常量继续存在并指向同一值；将 `AppSettings` 的默认值与校验改为依赖该契约。
+- **背景**：P2-01、P2-10、N-01；`AppSettings.cs` 的默认值与校验直接依赖三个展示相关模块，且新增测试必须登记到 R01 的固定测试清单。
+- **修改范围（最多 8 个文件）**：`AppSettings.cs`、`ThemeCatalog.cs`、`DisplayFormats.cs`、`MotionPlanner.cs`、`DesktopCountdown.csproj`、`dev.ps1`、新增 `SettingsDefaults.cs`、新增 `tests/SettingsDefaults.Tests.ps1`。
+- **具体步骤**：先锁定默认 JSON 字段和值；抽出不引用 WPF 的内部默认值/合法标识契约；让现有公开常量继续存在并指向同一值；将 `AppSettings` 的默认值与校验改为依赖该契约；在 `dev.ps1` 中登记新测试文件和用例标识，保留固定数量门禁。
 - **验收命令**：`pwsh -File .\dev.ps1 check`。新增测试比较变更前后的默认序列化结果及旧配置加载结果。
 - **风险**：中。
 - **回滚方式**：回滚本 PR；序列化字段和值未变，无配置迁移回滚步骤。
@@ -192,7 +192,7 @@
 | --- | --- | --- | ---: | --- |
 | R01 | 固定测试发现与用例数 | 低 | 3 | 明确功能基线 |
 | R02 | 构建源码清单一致性 | 低 | 4 | R01 |
-| R03 | 配置默认值脱离展示模块 | 中 | 7 | R02 |
+| R03 | 配置默认值脱离展示模块 | 中 | 8 | R02 |
 | R04 | 配置损坏与保存恢复 | 中 | 5 | R03 |
 | R05 | 登录启动状态一致性 | 高 | 6 | R04 |
 | R06 | 时间校准可验证性 | 高 | 4 | R01 |
