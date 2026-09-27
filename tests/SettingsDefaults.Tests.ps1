@@ -84,4 +84,31 @@ Describe 'DesktopCountdown settings defaults' {
         }
         finally { $modes[0] = $original }
     }
+
+    It 'keeps internal motion labels and selection stable when public arrays change' {
+        $planner = $assembly.GetType('DesktopCountdown.MotionPlanner', $true)
+        $modesField = $planner.GetField('Modes')
+        $namesField = $planner.GetField('Names')
+        $modesField.FieldType.FullName | Should Be 'System.String[]'
+        $namesField.FieldType.FullName | Should Be 'System.String[]'
+        $modes = $modesField.GetValue($null)
+        $names = $namesField.GetValue($null)
+        $originalMode = $modes[0]
+        $originalName = $names[0]
+        $flags = [System.Reflection.BindingFlags]'Static,NonPublic'
+        try {
+            $modes[0] = 'Injected'
+            $names[0] = '已修改'
+            $planner.GetProperty('ModeCount', $flags).GetValue($null) | Should Be 6
+            $planner.GetMethod('ModeAt', $flags).Invoke($null, @([int]0)) | Should Be 'NineGrid'
+            $planner.GetMethod('NameAt', $flags).Invoke($null, @([int]0)) | Should Be '九宫漫游'
+            $planner.GetMethod('IndexOfMode', $flags).Invoke($null, @([string]'NineGrid')) | Should Be 0
+            $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\SettingsWindow.cs') -Raw
+            $source | Should Not Match 'MotionPlanner\.(Modes|Names)'
+        }
+        finally {
+            $modes[0] = $originalMode
+            $names[0] = $originalName
+        }
+    }
 }

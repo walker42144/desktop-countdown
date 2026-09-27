@@ -30,6 +30,18 @@ namespace DesktopCountdown
         public static string[] Names = { "九宫漫游", "星轨", "随机漫步", "潮汐", "沿边散步", "远近切换" };
         private static readonly IReadOnlyList<string> SupportedModes = Array.AsReadOnly(
             new[] { NineGrid, Orbit, Wander, Tide, EdgeWalk, FarNear });
+        private static readonly IReadOnlyList<string> SupportedNames = Array.AsReadOnly(
+            new[] { "九宫漫游", "星轨", "随机漫步", "潮汐", "沿边散步", "远近切换" });
+
+        internal static int ModeCount { get { return SupportedModes.Count; } }
+        internal static string ModeAt(int index) { return SupportedModes[index]; }
+        internal static string NameAt(int index) { return SupportedNames[index]; }
+        internal static int IndexOfMode(string mode)
+        {
+            for (int i = 0; i < SupportedModes.Count; i++)
+                if (SupportedModes[i] == mode) return i;
+            return -1;
+        }
 
         public static Point Next(string mode, int step, double amplitude, Random random, Point previous, bool atHorizontalEdge, bool atVerticalEdge)
         {

@@ -105,6 +105,7 @@ function Invoke-Test {
         'preserves legacy JSON values and supplies new defaults',
         'keeps public constants and removes display dependencies from settings',
         'validates motion identifiers independently of the public mode array',
+        'keeps internal motion labels and selection stable when public arrays change',
         'keeps the public settings window contract',
         'splits grouped layout and bindings out of the constructor',
         'closes the nonmodal preview from its cancel button',

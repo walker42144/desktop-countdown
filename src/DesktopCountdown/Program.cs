@@ -163,9 +163,10 @@ namespace DesktopCountdown
             if (DisplayFormats.TryValidateCountdown("{unknown}", out error) ||
                 DisplayFormats.ClockNeedsSeconds("yyyy-MM-dd HH:mm"))
                 throw new InvalidOperationException("格式校验异常");
-            if (MotionPlanner.Modes.Length != 6) throw new InvalidOperationException("位移方式数量异常");
-            foreach (string mode in MotionPlanner.Modes)
+            if (MotionPlanner.ModeCount != 6) throw new InvalidOperationException("位移方式数量异常");
+            for (int i = 0; i < MotionPlanner.ModeCount; i++)
             {
+                string mode = MotionPlanner.ModeAt(i);
                 System.Windows.Point point = MotionPlanner.Next(mode, 1, 6, new Random(1),
                     new System.Windows.Point(0, 0), false, false);
                 if (double.IsNaN(point.X) || double.IsNaN(point.Y))

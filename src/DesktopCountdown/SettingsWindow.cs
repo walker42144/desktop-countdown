@@ -145,8 +145,8 @@ namespace DesktopCountdown
             clockPresetBox.SelectedIndex = ClockPresetIndex(working.ClockFormat);
             motionBox = new CheckBox { Content = "启用防烧屏微位移", IsChecked = working.MotionEnabled };
             motionModeBox = new ComboBox();
-            for (int i = 0; i < MotionPlanner.Modes.Length; i++) motionModeBox.Items.Add(MotionPlanner.Names[i]);
-            motionModeBox.SelectedIndex = Math.Max(0, Array.IndexOf(MotionPlanner.Modes, working.MotionMode));
+            for (int i = 0; i < MotionPlanner.ModeCount; i++) motionModeBox.Items.Add(MotionPlanner.NameAt(i));
+            motionModeBox.SelectedIndex = Math.Max(0, MotionPlanner.IndexOfMode(working.MotionMode));
             motionIntervalBox = new TextBox { Text = working.MotionIntervalSeconds.ToString(CultureInfo.InvariantCulture) };
             motionAmplitudeBox = new TextBox { Text = working.MotionAmplitudePixels.ToString(CultureInfo.InvariantCulture) };
             motionTransitionBox = new ComboBox();
@@ -737,7 +737,7 @@ namespace DesktopCountdown
             int amplitude;
             if (!int.TryParse(motionAmplitudeBox.Text, out amplitude)) amplitude = 6;
             amplitude = Math.Max(1, Math.Min(20, amplitude));
-            string mode = MotionPlanner.Modes[Math.Max(0, motionModeBox.SelectedIndex)];
+            string mode = MotionPlanner.ModeAt(Math.Max(0, motionModeBox.SelectedIndex));
             Point next = MotionPlanner.Next(mode, previewStep++, amplitude, previewRandom,
                 previewPrevious, mode == MotionPlanner.EdgeWalk, false);
             previewPrevious = next;
@@ -764,7 +764,7 @@ namespace DesktopCountdown
             int[] transitionValues = { 0, 400, 1000, 2000 };
             int index = Math.Max(0, motionTransitionBox.SelectedIndex);
             MotionTrialEventArgs args = new MotionTrialEventArgs(
-                MotionPlanner.Modes[Math.Max(0, motionModeBox.SelectedIndex)], amplitude,
+                MotionPlanner.ModeAt(Math.Max(0, motionModeBox.SelectedIndex)), amplitude,
                 transitionValues[index]);
             handler(this, args);
             motionStatus.Text = args.PlannedDistancePixels >= 0.75
@@ -855,7 +855,7 @@ namespace DesktopCountdown
             working.CountdownFormat = countdownFormatBox.Text;
             working.ClockFormat = clockFormatBox.Text;
             working.MotionEnabled = motionBox.IsChecked == true;
-            working.MotionMode = MotionPlanner.Modes[Math.Max(0, motionModeBox.SelectedIndex)];
+            working.MotionMode = MotionPlanner.ModeAt(Math.Max(0, motionModeBox.SelectedIndex));
             working.MotionIntervalSeconds = interval;
             working.MotionAmplitudePixels = amplitudePixels;
             int[] transitionValues = { 0, 400, 1000, 2000 };
