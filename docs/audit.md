@@ -164,5 +164,6 @@ flowchart LR
 | N-02 | R04 原范围（`docs/refactor-plan.md:55-57`）要求新增 `tests/SettingsStore.Tests.ps1`，但 `dev.ps1:62-68` 固定核对测试文件名，`dev.ps1:70-91` 固定核对用例名和数量，原范围未包含 `dev.ps1`。 | 新测试无法通过既有测试清单门禁，R04 不能按原范围独立验收。 | 将 `dev.ps1` 纳入 R04 范围，仅登记新测试文件和用例标识，保留固定数量门禁。 |
 | N-03 | R04 新测试曾使用 `Should Throw`（`tests/SettingsStore.Tests.ps1:60`）；本机 PowerShell 7 + Pester 3.4 将最小用例 `{ throw 'x' } \| Should Throw` 误判为未抛异常。 | 异常路径测试出现假失败，并使测试发现负向用例的失败数失真；属于本机验证环境兼容性，其他环境需人工确认。 | R04 测试改用显式 `try/catch` 捕获异常并断言结果，保留实际异常路径及文件字节断言；不放宽测试发现门禁。 |
 | N-04 | R05 原范围（`docs/refactor-plan.md:67-69`）要求新增 `tests/StartupService.Tests.ps1`，但 `dev.ps1:62-68` 固定核对测试文件名，`dev.ps1:70-102` 固定核对用例名和数量，原范围未包含 `dev.ps1`。 | 按原范围新增测试无法通过既有门禁，阶段不能独立验收。 | 将 `dev.ps1` 纳入 R05 范围，仅登记新测试文件和用例标识，不放宽固定数量门禁。 |
+| N-05 | R06 原范围（`docs/refactor-plan.md:79-81`）要求新增 `tests/AccurateClock.Tests.ps1`，但 `dev.ps1:62-68` 固定核对测试文件名，`dev.ps1:70-109` 固定核对用例名和数量，原范围未包含 `dev.ps1`。 | 按原范围新增校时测试无法通过既有门禁，阶段不能独立验收。 | 将 `dev.ps1` 纳入 R06 范围，仅登记新测试文件和用例标识，不放宽固定数量门禁。 |
 
 后续新发现仍需给出 `文件:行号`；记录问题本身不授权扩大阶段代码修改范围。
