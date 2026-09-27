@@ -140,7 +140,7 @@ namespace DesktopCountdown
 
             TextBlock heading = new TextBlock
             {
-                Text = "DESKTOP COUNTDOWN  ·  10 ART THEMES",
+                Text = "桌面倒计时  ·  10 款艺术风格",
                 FontFamily = new FontFamily("Segoe UI Variable"),
                 FontSize = 20,
                 FontWeight = FontWeights.SemiBold,

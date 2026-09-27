@@ -34,16 +34,32 @@
     <Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="assets\DesktopCountdown.ico">
+      <LogicalName>DesktopCountdown.Brand.ico</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="assets\ComboBoxTemplate.xaml">
+      <LogicalName>DesktopCountdown.ComboBoxTemplate.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="assets\CheckBoxStyle.xaml">
+      <LogicalName>DesktopCountdown.CheckBoxStyle.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="assets\ScrollBarStyle.xaml">
+      <LogicalName>DesktopCountdown.ScrollBarStyle.xaml</LogicalName>
+    </EmbeddedResource>
     <Compile Include="src\DesktopCountdown\AccurateClock.cs" />
     <Compile Include="src\DesktopCountdown\AppSettings.cs" />
     <Compile Include="src\DesktopCountdown\DesktopHostService.cs" />
+    <Compile Include="src\DesktopCountdown\DisplayFormats.cs" />
     <Compile Include="src\DesktopCountdown\EdgeSnapCalculator.cs" />
+    <Compile Include="src\DesktopCountdown\FluentTheme.cs" />
     <Compile Include="src\DesktopCountdown\IconFactory.cs" />
     <Compile Include="src\DesktopCountdown\MainWindow.cs" />
+    <Compile Include="src\DesktopCountdown\MotionPlanner.cs" />
     <Compile Include="src\DesktopCountdown\Program.cs" />
     <Compile Include="src\DesktopCountdown\PreviewRenderer.cs" />
     <Compile Include="src\DesktopCountdown\SettingsStore.cs" />
     <Compile Include="src\DesktopCountdown\SettingsWindow.cs" />
+    <Compile Include="src\DesktopCountdown\StartupService.cs" />
     <Compile Include="src\DesktopCountdown\ThemeCatalog.cs" />
     <Compile Include="src\DesktopCountdown\ThemeDecorations.cs" />
     <Compile Include="src\DesktopCountdown\WallpaperColorService.cs" />

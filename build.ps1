@@ -53,6 +53,10 @@ $compilerArguments = @(
     "/pdb:$pdb",
     "/win32manifest:$manifest"
     "/win32icon:$applicationIcon"
+    "/resource:$applicationIcon,DesktopCountdown.Brand.ico"
+    "/resource:$(Join-Path $projectRoot 'assets\ComboBoxTemplate.xaml'),DesktopCountdown.ComboBoxTemplate.xaml"
+    "/resource:$(Join-Path $projectRoot 'assets\CheckBoxStyle.xaml'),DesktopCountdown.CheckBoxStyle.xaml"
+    "/resource:$(Join-Path $projectRoot 'assets\ScrollBarStyle.xaml'),DesktopCountdown.ScrollBarStyle.xaml"
 )
 if ($TreatWarningsAsErrors) { $compilerArguments += '/warnaserror+' }
 $compilerArguments += $references | ForEach-Object { "/reference:$_" }

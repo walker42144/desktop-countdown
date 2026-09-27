@@ -6,13 +6,14 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
+using System.Windows.Media.Imaging;
 
 [assembly: AssemblyTitle("桌面倒计时")]
 [assembly: AssemblyDescription("简洁、准确、可随壁纸自适应的 Windows 桌面倒计时")]
 [assembly: AssemblyCompany("walker42144")]
 [assembly: AssemblyProduct("Desktop Countdown")]
-[assembly: AssemblyVersion("0.2.0.0")]
-[assembly: AssemblyFileVersion("0.2.0.0")]
+[assembly: AssemblyVersion("0.3.0.0")]
+[assembly: AssemblyFileVersion("0.3.0.0")]
 [assembly: ComVisible(false)]
 
 namespace DesktopCountdown
@@ -28,8 +29,20 @@ namespace DesktopCountdown
                 return RunSmokeTest();
             if (args != null && Array.Exists(args, a => string.Equals(a, "--render-previews", StringComparison.OrdinalIgnoreCase)))
                 return RenderPreviews();
+            if (args != null && Array.Exists(args, a => string.Equals(a, "--render-settings", StringComparison.OrdinalIgnoreCase)))
+                return RenderSettings();
             if (args != null && Array.Exists(args, a => string.Equals(a, "--clock-test", StringComparison.OrdinalIgnoreCase)))
                 return TestNetworkClock();
+            if (args != null && Array.Exists(args, a => string.Equals(a, "--settings-preview", StringComparison.OrdinalIgnoreCase)))
+            {
+                Application previewApplication = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+                SettingsWindow preview = new SettingsWindow(SettingsStore.Load(), "设置页预览 · 不保存配置");
+                foreach (System.Windows.Forms.Screen screen in System.Windows.Forms.Screen.AllScreens)
+                    if (!screen.Primary) { preview.OpenOnScreen(screen); break; }
+                previewApplication.MainWindow = preview;
+                preview.Show();
+                return previewApplication.Run();
+            }
 
             bool created;
             using (Mutex mutex = new Mutex(true, MutexName, out created))
@@ -80,6 +93,8 @@ namespace DesktopCountdown
                 VerifyEdgeSnapping();
                 ThemeDefinition theme = ThemeCatalog.Get(defaults.ThemeName);
                 VerifyThemes();
+                VerifyDisplayAndMotion();
+                VerifySettingsStyles();
                 Rectangle area = new Rectangle(100, 100, 480, 160);
                 WallpaperAppearance wallpaper = WallpaperColorService.Analyze(area);
                 string result = "OK" + Environment.NewLine +
@@ -116,11 +131,95 @@ namespace DesktopCountdown
                 if (string.IsNullOrWhiteSpace(theme.Key) || string.IsNullOrWhiteSpace(theme.DisplayName) || !keys.Add(theme.Key))
                     throw new InvalidOperationException("主题目录包含空值或重复键");
             }
-            if (keys.Count != 10) throw new InvalidOperationException("v0.2.0 应包含10套主题");
+            if (keys.Count != 10) throw new InvalidOperationException("应包含10套主题");
             using (System.Drawing.Icon icon = IconFactory.CreateClockIcon())
             {
                 if (icon == null || icon.Width < 16 || icon.Height < 16)
                     throw new InvalidOperationException("应用图标未正确嵌入");
+            }
+        }
+
+        private static void VerifyDisplayAndMotion()
+        {
+            string error;
+            if (!DisplayFormats.TryValidateCountdown(DisplayFormats.DefaultCountdown, out error) ||
+                !DisplayFormats.TryValidateClock(DisplayFormats.DefaultClock, out error))
+                throw new InvalidOperationException("默认显示格式无效：" + error);
+            string sample = DisplayFormats.Countdown(DisplayFormats.DefaultCountdown,
+                new TimeSpan(83, 12, 36, 20), false, true);
+            if (sample != "083 天  12:36:20") throw new InvalidOperationException("倒计时默认格式发生变化");
+            string compact = DisplayFormats.Countdown("{sign}{totalHours}h {minutes:2}m",
+                new TimeSpan(2, 3, 4, 5), true, false);
+            if (compact != "+51h 04m") throw new InvalidOperationException("自定义倒计时格式异常");
+            if (DisplayFormats.TryValidateCountdown("{unknown}", out error) ||
+                DisplayFormats.ClockNeedsSeconds("yyyy-MM-dd HH:mm"))
+                throw new InvalidOperationException("格式校验异常");
+            if (MotionPlanner.Modes.Length != 6) throw new InvalidOperationException("位移方式数量异常");
+            foreach (string mode in MotionPlanner.Modes)
+            {
+                System.Windows.Point point = MotionPlanner.Next(mode, 1, 6, new Random(1),
+                    new System.Windows.Point(0, 0), false, false);
+                if (double.IsNaN(point.X) || double.IsNaN(point.Y))
+                    throw new InvalidOperationException("位移路径无效：" + mode);
+            }
+            System.Windows.Point constrained = MotionPlanner.Constrain(new System.Windows.Point(-18, -18),
+                new System.Windows.Point(-20, 10), new System.Windows.Size(500, 200),
+                new System.Windows.Rect(0, 0, 1920, 1080), 18);
+            if (Math.Abs(constrained.X - (-18)) > 0.01 || Math.Abs(constrained.Y - (-8)) > 0.01)
+                throw new InvalidOperationException("屏幕边界位移约束异常");
+            System.Windows.Point visible = MotionPlanner.EnsureVisibleMove(
+                new System.Windows.Point(-18, -18), new System.Windows.Point(-10, -10),
+                new System.Windows.Point(0, 0), new System.Windows.Size(500, 200),
+                new System.Windows.Rect(0, 0, 1920, 1080), 18, 10);
+            if (Math.Abs(visible.X) + Math.Abs(visible.Y) < 1)
+                throw new InvalidOperationException("贴边时位移不能保持可见");
+        }
+
+        private static void VerifySettingsStyles()
+        {
+            SettingsWindow window = new SettingsWindow(AppSettings.CreateDefault(), "校时状态测试");
+            try
+            {
+                if (!window.Resources.Contains(typeof(System.Windows.Controls.CheckBox)) ||
+                    !window.Resources.Contains(typeof(System.Windows.Controls.Primitives.ScrollBar)) ||
+                    !window.Resources.Contains("FluentAccent"))
+                    throw new InvalidOperationException("设置页的 Fluent 样式缺失");
+            }
+            finally { window.Close(); }
+        }
+
+        private static int RenderSettings()
+        {
+            string directory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings-previews");
+            Directory.CreateDirectory(directory);
+            try
+            {
+                foreach (bool dark in new[] { false, true })
+                {
+                    SettingsWindow window = new SettingsWindow(AppSettings.CreateDefault(), "时间校准状态", dark);
+                    try
+                    {
+                        FrameworkElement content = (FrameworkElement)window.Content;
+                        content.Measure(new System.Windows.Size(950, 810));
+                        content.Arrange(new System.Windows.Rect(0, 0, 950, 810));
+                        content.UpdateLayout();
+                        RenderTargetBitmap bitmap = new RenderTargetBitmap(950, 810, 96, 96,
+                            System.Windows.Media.PixelFormats.Pbgra32);
+                        bitmap.Render(content);
+                        PngBitmapEncoder encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                        using (FileStream stream = File.Create(Path.Combine(directory, dark ? "dark.png" : "light.png")))
+                            encoder.Save(stream);
+                    }
+                    finally { window.Close(); }
+                }
+                File.WriteAllText(Path.Combine(directory, "result.txt"), "OK");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                File.WriteAllText(Path.Combine(directory, "result.txt"), "FAILED\r\n" + ex);
+                return 1;
             }
         }
 

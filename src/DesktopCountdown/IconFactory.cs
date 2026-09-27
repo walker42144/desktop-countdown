@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -11,11 +12,17 @@ namespace DesktopCountdown
     {
         public static Icon CreateClockIcon()
         {
+            using (System.IO.Stream stream = typeof(IconFactory).Assembly.GetManifestResourceStream("DesktopCountdown.Brand.ico"))
+            {
+                if (stream != null)
+                {
+                    using (Icon embedded = new Icon(stream)) return (Icon)embedded.Clone();
+                }
+            }
             string executable = Process.GetCurrentProcess().MainModule.FileName;
             using (Icon associated = Icon.ExtractAssociatedIcon(executable))
             {
-                if (associated == null) return (Icon)SystemIcons.Application.Clone();
-                return (Icon)associated.Clone();
+                return associated == null ? (Icon)SystemIcons.Application.Clone() : (Icon)associated.Clone();
             }
         }
 

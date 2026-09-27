@@ -25,6 +25,15 @@ namespace DesktopCountdown
         [DataMember(Order = 16)] public double Top { get; set; }
         [DataMember(Order = 17)] public string NtpServer { get; set; }
         [DataMember(Order = 18)] public string ThemeName { get; set; }
+        [DataMember(Order = 19)] public string CountdownFormat { get; set; }
+        [DataMember(Order = 20)] public string ClockFormat { get; set; }
+        [DataMember(Order = 21)] public bool MotionEnabled { get; set; }
+        [DataMember(Order = 22)] public string MotionMode { get; set; }
+        [DataMember(Order = 23)] public int MotionIntervalSeconds { get; set; }
+        [DataMember(Order = 24)] public int MotionAmplitudePixels { get; set; }
+        [DataMember(Order = 25)] public int MotionTransitionMilliseconds { get; set; }
+        [DataMember(Order = 26)] public bool VisualBreathing { get; set; }
+        [DataMember(Order = 27)] public string StartupMode { get; set; }
 
         public static AppSettings CreateDefault()
         {
@@ -48,7 +57,16 @@ namespace DesktopCountdown
                 Left = 120,
                 Top = 120,
                 NtpServer = "time.windows.com"
-                ,ThemeName = ThemeCatalog.DefaultTheme
+                ,ThemeName = ThemeCatalog.DefaultTheme,
+                CountdownFormat = DisplayFormats.DefaultCountdown,
+                ClockFormat = DisplayFormats.DefaultClock,
+                MotionEnabled = false,
+                MotionMode = MotionPlanner.NineGrid,
+                MotionIntervalSeconds = 120,
+                MotionAmplitudePixels = 6,
+                MotionTransitionMilliseconds = 0,
+                VisualBreathing = false,
+                StartupMode = "Registry"
             };
         }
 
@@ -66,6 +84,14 @@ namespace DesktopCountdown
             if (string.IsNullOrWhiteSpace(ThemeName)) ThemeName = ThemeCatalog.DefaultTheme;
             if (double.IsNaN(Left) || double.IsInfinity(Left)) Left = 120;
             if (double.IsNaN(Top) || double.IsInfinity(Top)) Top = 120;
+            string ignored;
+            if (!DisplayFormats.TryValidateCountdown(CountdownFormat, out ignored)) CountdownFormat = DisplayFormats.DefaultCountdown;
+            if (!DisplayFormats.TryValidateClock(ClockFormat, out ignored)) ClockFormat = DisplayFormats.DefaultClock;
+            if (Array.IndexOf(MotionPlanner.Modes, MotionMode) < 0) MotionMode = MotionPlanner.NineGrid;
+            if (MotionIntervalSeconds < 30 || MotionIntervalSeconds > 1800) MotionIntervalSeconds = 120;
+            if (MotionAmplitudePixels < 1 || MotionAmplitudePixels > 20) MotionAmplitudePixels = 6;
+            if (MotionTransitionMilliseconds < 0 || MotionTransitionMilliseconds > 2000) MotionTransitionMilliseconds = 0;
+            if (StartupMode != "Task") StartupMode = "Registry";
         }
 
         public DateTime GetTargetLocal()
