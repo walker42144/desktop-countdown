@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -100,6 +100,13 @@ function Invoke-Test {
         'keeps the prior calibration after a timeout',
         'rejects an excessive offset',
         'keeps calibrated time stable across a system clock jump',
+        'preserves a valid exact local target and its JSON',
+        'continues to parse a legacy culture-specific target',
+        'marks a configured empty target for repair without rewriting the file',
+        'marks invalid text for repair rather than returning the current time',
+        'keeps an unconfigured legacy empty target as a first-run prompt',
+        'clears the repair state after a valid target is supplied',
+        'retains the repair prompt after saving unrelated settings',
         'fails when the required startup module is missing',
         'returns a nonzero test command exit code when startup is missing'
     )

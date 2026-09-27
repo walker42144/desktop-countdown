@@ -35,6 +35,8 @@ namespace DesktopCountdown
         [DataMember(Order = 26)] public bool VisualBreathing { get; set; }
         [DataMember(Order = 27)] public string StartupMode { get; set; }
 
+        internal bool TargetNeedsRepair { get; private set; }
+
         public static AppSettings CreateDefault()
         {
             DateTime initialTarget = DateTime.Now.Date.AddDays(30).AddHours(9);
@@ -73,8 +75,17 @@ namespace DesktopCountdown
         public void Validate()
         {
             if (string.IsNullOrWhiteSpace(Title)) Title = "距离目标时刻还有";
-            if (string.IsNullOrWhiteSpace(TargetLocal))
+            if (!HasConfiguredTarget && !TargetNeedsRepair && string.IsNullOrWhiteSpace(TargetLocal))
                 TargetLocal = DateTime.Now.Date.AddDays(30).AddHours(9).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            DateTime target;
+            if (!TryGetTargetLocal(out target))
+            {
+                TargetNeedsRepair = HasConfiguredTarget || TargetNeedsRepair || !string.IsNullOrWhiteSpace(TargetLocal);
+            }
+            else
+            {
+                TargetNeedsRepair = false;
+            }
             if (string.IsNullOrWhiteSpace(TitleFontFamily)) TitleFontFamily = "MiSans";
             if (string.IsNullOrWhiteSpace(DigitFontFamily)) DigitFontFamily = "Bahnschrift";
             if (TitleFontSize < 12 || TitleFontSize > 72) TitleFontSize = 22;
@@ -97,14 +108,27 @@ namespace DesktopCountdown
         public DateTime GetTargetLocal()
         {
             DateTime value;
+            if (TryGetTargetLocal(out value)) return value;
+            throw new FormatException("目标时间格式无效，请重新设置。");
+        }
+
+        internal bool TryGetTargetLocal(out DateTime value)
+        {
             if (DateTime.TryParseExact(TargetLocal, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
                 DateTimeStyles.AllowWhiteSpaces, out value))
-                return DateTime.SpecifyKind(value, DateTimeKind.Local);
+            {
+                value = DateTime.SpecifyKind(value, DateTimeKind.Local);
+                return true;
+            }
 
             if (DateTime.TryParse(TargetLocal, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out value))
-                return DateTime.SpecifyKind(value, DateTimeKind.Local);
+            {
+                value = DateTime.SpecifyKind(value, DateTimeKind.Local);
+                return true;
+            }
 
-            return DateTime.Now;
+            value = default(DateTime);
+            return false;
         }
 
         public AppSettings Clone()

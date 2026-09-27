@@ -265,13 +265,13 @@ namespace DesktopCountdown
                 anchorTop = Top;
             }), DispatcherPriority.Loaded);
 
-            if (!settings.HasConfiguredTarget)
+            if (!settings.HasConfiguredTarget || settings.TargetNeedsRepair)
                 Dispatcher.BeginInvoke(new Action(OpenSettings), DispatcherPriority.ApplicationIdle);
         }
 
         private void ApplySettingsToView()
         {
-            titleText.Text = settings.HasConfiguredTarget ? settings.Title : "双击设置目标时间";
+            titleText.Text = TargetHeading(settings);
             titleText.FontFamily = SafeFont(settings.TitleFontFamily, "MiSans");
             titleText.FontSize = settings.TitleFontSize;
             titleText.FontWeight = FontWeights.Normal;
@@ -300,9 +300,18 @@ namespace DesktopCountdown
             ConfigureMotion();
         }
 
+        private static string TargetHeading(AppSettings value)
+        {
+            if (value.TargetNeedsRepair) return "目标时间无效，请重新设置";
+            return value.HasConfiguredTarget ? value.Title : "双击设置目标时间";
+        }
+
         private void UpdateCountdown()
         {
-            if (!settings.HasConfiguredTarget)
+            DateTime target;
+            if (settings.HasConfiguredTarget && !settings.TryGetTargetLocal(out target))
+                settings.Validate();
+            if (!settings.HasConfiguredTarget || settings.TargetNeedsRepair)
             {
                 dayRun.Text = "---";
                 unitRun.Text = " 天  ";
@@ -313,7 +322,7 @@ namespace DesktopCountdown
             }
 
             DateTime now = clock.LocalNow;
-            DateTime target = settings.GetTargetLocal();
+            target = settings.GetTargetLocal();
             TimeSpan remaining = target - now;
             bool elapsed = remaining < TimeSpan.Zero;
             if (elapsed) remaining = remaining.Negate();
@@ -648,6 +657,7 @@ namespace DesktopCountdown
             {
                 AppSettings previousSettings = settings;
                 settings = dialog.Result;
+                settings.Validate();
                 ApplySettingsToView();
                 // Retry even when the selection is unchanged: an earlier task creation
                 // may have failed after its desired mode was saved to settings.json.
