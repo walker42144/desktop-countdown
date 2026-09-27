@@ -166,5 +166,6 @@ flowchart LR
 | N-04 | R05 原范围（`docs/refactor-plan.md:67-69`）要求新增 `tests/StartupService.Tests.ps1`，但 `dev.ps1:62-68` 固定核对测试文件名，`dev.ps1:70-102` 固定核对用例名和数量，原范围未包含 `dev.ps1`。 | 按原范围新增测试无法通过既有门禁，阶段不能独立验收。 | 将 `dev.ps1` 纳入 R05 范围，仅登记新测试文件和用例标识，不放宽固定数量门禁。 |
 | N-05 | R06 原范围（`docs/refactor-plan.md:79-81`）要求新增 `tests/AccurateClock.Tests.ps1`，但 `dev.ps1:62-68` 固定核对测试文件名，`dev.ps1:70-109` 固定核对用例名和数量，原范围未包含 `dev.ps1`。 | 按原范围新增校时测试无法通过既有门禁，阶段不能独立验收。 | 将 `dev.ps1` 纳入 R06 范围，仅登记新测试文件和用例标识，不放宽固定数量门禁。 |
 | N-06 | R07 原范围（`docs/refactor-plan.md:91-93`）要求新增 `tests/TargetTime.Tests.ps1`，但 `dev.ps1:62-68` 固定核对测试文件名，`dev.ps1:70-116` 固定核对用例名和数量，原范围未包含 `dev.ps1`。 | 按原范围新增目标时间测试无法通过既有门禁，阶段不能独立验收。 | 将 `dev.ps1` 纳入 R07 范围，仅登记新测试文件和用例标识，不放宽固定数量门禁。 |
+| N-07 | `src/DesktopCountdown/Program.cs:36-44` 以 `Show()` 打开非模态 `--settings-preview` 窗口；`src/DesktopCountdown/SettingsWindow.cs:308` 的“取消”按钮仅设置 `IsCancel = true`，未绑定关闭动作。实机检查中点击“取消”未关闭预览窗口；R14 只是将该按钮原样移至 `SettingsSections.cs`。 | 预览模式用户无法通过“取消”退出，只能关闭标题栏；该问题不影响常规模态设置对话框，需人工确认其他入口。 | 后续独立修复预览模式的取消关闭行为，并为预览入口增加对应验收；不纳入 R14 布局拆分。 |
 
 后续新发现仍需给出 `文件:行号`；记录问题本身不授权扩大阶段代码修改范围。
