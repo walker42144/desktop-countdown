@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DesktopHost.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1', 'ThemeContract.Tests.ps1', 'WallpaperColor.Tests.ps1')
+    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DesktopHost.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsLayout.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1', 'ThemeContract.Tests.ps1', 'WallpaperColor.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -100,6 +100,9 @@ function Invoke-Test {
         'preserves legacy JSON values and supplies new defaults',
         'keeps public constants and removes display dependencies from settings',
         'validates motion identifiers independently of the public mode array',
+        'keeps the public settings window contract',
+        'splits grouped layout and bindings out of the constructor',
+        'renders both light and dark settings screenshots',
         'uses defaults only when settings and recovery files are absent',
         'loads a valid file and creates a byte-identical backup on save',
         'reports corrupt settings without changing original or backup bytes',
