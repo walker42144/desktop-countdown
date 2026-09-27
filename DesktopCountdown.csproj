@@ -67,6 +67,7 @@
     <Compile Include="src\DesktopCountdown\StartupBackend.cs" />
     <Compile Include="src\DesktopCountdown\ThemeCatalog.cs" />
     <Compile Include="src\DesktopCountdown\ThemeDecorations.cs" />
+    <Compile Include="src\DesktopCountdown\ThemeDefinition.cs" />
     <Compile Include="src\DesktopCountdown\WallpaperColorService.cs" />
   </ItemGroup>
 </Project>
