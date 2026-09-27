@@ -27,19 +27,8 @@ namespace DesktopCountdown
         private readonly DesktopHostService desktopHost = new DesktopHostService();
         private readonly DispatcherTimer countdownTimer = new DispatcherTimer(DispatcherPriority.Background);
         private readonly DispatcherTimer appearanceTimer = new DispatcherTimer(DispatcherPriority.Background);
-        private readonly DispatcherTimer motionTimer = new DispatcherTimer(DispatcherPriority.Background);
-        private readonly DispatcherTimer motionAnimationTimer = new DispatcherTimer(DispatcherPriority.Background);
+        private readonly MotionSession motion = new MotionSession();
         private readonly DispatcherTimer breathingTimer = new DispatcherTimer(DispatcherPriority.Background);
-        private readonly Random motionRandom = new Random();
-        private double anchorLeft;
-        private double anchorTop;
-        private Point motionOffset;
-        private Point motionFrom;
-        private Point motionTo;
-        private DateTime motionStarted;
-        private DateTime nextMotionAt;
-        private int motionStep;
-        private bool internalMotion;
         private bool breathingDimmed;
         private readonly Border surface;
         private readonly TextBlock titleText;
@@ -76,8 +65,7 @@ namespace DesktopCountdown
             SizeToContent = SizeToContent.WidthAndHeight;
             Left = settings.Left;
             Top = settings.Top;
-            anchorLeft = settings.Left;
-            anchorTop = settings.Top;
+            motion.SetAnchor(settings.Left, settings.Top);
             MinWidth = 280;
 
             shadow = new DropShadowEffect
@@ -158,9 +146,8 @@ namespace DesktopCountdown
                 appearanceTimer.Stop();
                 UpdateAppearance();
             };
-            motionTimer.Tick += delegate { MoveOnce(); };
-            motionAnimationTimer.Interval = TimeSpan.FromMilliseconds(33);
-            motionAnimationTimer.Tick += delegate { AnimateMotion(); };
+            motion.StepTimer.Tick += delegate { MoveOnce(); };
+            motion.AnimationTimer.Tick += delegate { AnimateMotion(); };
             breathingTimer.Interval = TimeSpan.FromSeconds(45);
             breathingTimer.Tick += delegate { ToggleBreathing(); };
 
@@ -229,7 +216,7 @@ namespace DesktopCountdown
             SourceInitialized += delegate { sourceReady = true; };
             LocationChanged += delegate
             {
-                if (!internalMotion) { anchorLeft = Left; anchorTop = Top; motionOffset = new Point(); }
+                if (!motion.IsApplying) motion.SetAnchor(Left, Top);
                 QueueAppearanceUpdate();
             };
             SizeChanged += delegate { QueueAppearanceUpdate(); };
@@ -261,8 +248,7 @@ namespace DesktopCountdown
                 SnapVisibleSurfaceToNearestEdge();
                 settings.Left = Left;
                 settings.Top = Top;
-                anchorLeft = Left;
-                anchorTop = Top;
+                motion.SetAnchor(Left, Top);
             }), DispatcherPriority.Loaded);
 
             if (!settings.HasConfiguredTarget || settings.TargetNeedsRepair)
@@ -354,8 +340,8 @@ namespace DesktopCountdown
         private string BuildTooltip()
         {
             string motionStatus = !settings.MotionEnabled ? "防烧屏：未启用"
-                : nextMotionAt <= DateTime.MinValue ? "防烧屏：已暂停"
-                : "防烧屏：下次位移约 " + nextMotionAt.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
+                : motion.NextAt <= DateTime.MinValue ? "防烧屏：已暂停"
+                : "防烧屏：下次位移约 " + motion.NextAt.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
             return clock.Status + Environment.NewLine + wallpaperStatus + Environment.NewLine + motionStatus;
         }
 
@@ -438,20 +424,13 @@ namespace DesktopCountdown
 
         private void ConfigureMotion()
         {
-            motionTimer.Stop();
-            motionAnimationTimer.Stop();
+            motion.Configure(settings.MotionEnabled, settings.MotionIntervalSeconds,
+                IsLoaded && IsVisible, DateTime.Now);
             breathingTimer.Stop();
             surface.BeginAnimation(OpacityProperty, null);
             surface.Opacity = 1;
             breathingDimmed = false;
-            nextMotionAt = DateTime.MinValue;
             if (!IsLoaded || !IsVisible) return;
-            if (settings.MotionEnabled)
-            {
-                motionTimer.Interval = TimeSpan.FromSeconds(settings.MotionIntervalSeconds);
-                nextMotionAt = DateTime.Now.Add(motionTimer.Interval);
-                motionTimer.Start();
-            }
             if (settings.VisualBreathing) breathingTimer.Start();
             ToolTip = BuildTooltip();
         }
@@ -460,7 +439,7 @@ namespace DesktopCountdown
         {
             MoveOnceCore(settings.MotionMode, settings.MotionAmplitudePixels,
                 settings.MotionTransitionMilliseconds, false);
-            nextMotionAt = DateTime.Now.Add(motionTimer.Interval);
+            motion.ScheduleNext(DateTime.Now);
             ToolTip = BuildTooltip();
         }
 
@@ -475,28 +454,28 @@ namespace DesktopCountdown
                     new System.Drawing.Point((int)PointToScreen(new Point(ActualWidth / 2, ActualHeight / 2)).X,
                         (int)PointToScreen(new Point(ActualWidth / 2, ActualHeight / 2)).Y));
                 Rect work = GetWorkArea(screen);
-                horizontalEdge = Math.Abs(anchorLeft + ShadowGutter - work.Left) < 8 ||
-                    Math.Abs(anchorLeft + ActualWidth - ShadowGutter - work.Right) < 8;
-                verticalEdge = Math.Abs(anchorTop + ShadowGutter - work.Top) < 8 ||
-                    Math.Abs(anchorTop + ActualHeight - ShadowGutter - work.Bottom) < 8;
+                horizontalEdge = Math.Abs(motion.Anchor.X + ShadowGutter - work.Left) < 8 ||
+                    Math.Abs(motion.Anchor.X + ActualWidth - ShadowGutter - work.Right) < 8;
+                verticalEdge = Math.Abs(motion.Anchor.Y + ShadowGutter - work.Top) < 8 ||
+                    Math.Abs(motion.Anchor.Y + ActualHeight - ShadowGutter - work.Bottom) < 8;
             }
             catch (Exception ex) { DiagnosticLog.Record("MainWindow.MotionEdge", ex); }
-            Point previousPixels = motionOffset;
+            Point previousPixels = motion.Offset;
             PresentationSource dpiSource = PresentationSource.FromVisual(this);
             if (dpiSource != null && dpiSource.CompositionTarget != null)
             {
                 Vector previous = dpiSource.CompositionTarget.TransformToDevice.Transform(
-                    new Vector(motionOffset.X, motionOffset.Y));
+                    new Vector(motion.Offset.X, motion.Offset.Y));
                 previousPixels = new Point(previous.X, previous.Y);
             }
-            Point nextPixels = MotionPlanner.Next(mode, motionStep++, amplitudePixels,
-                motionRandom, previousPixels, horizontalEdge, verticalEdge);
-            motionTo = nextPixels;
+            Point nextPixels = MotionPlanner.Next(mode, motion.TakeStep(), amplitudePixels,
+                motion.Random, previousPixels, horizontalEdge, verticalEdge);
+            Point targetOffset = nextPixels;
             if (dpiSource != null && dpiSource.CompositionTarget != null)
             {
                 Vector next = dpiSource.CompositionTarget.TransformFromDevice.Transform(
                     new Vector(nextPixels.X, nextPixels.Y));
-                motionTo = new Point(next.X, next.Y);
+                targetOffset = new Point(next.X, next.Y);
             }
             try
             {
@@ -507,51 +486,42 @@ namespace DesktopCountdown
                 if (dpiSource != null && dpiSource.CompositionTarget != null)
                     amplitudeDip = dpiSource.CompositionTarget.TransformFromDevice.Transform(
                         new Vector(amplitudePixels, 0)).Length;
-                motionTo = MotionPlanner.EnsureVisibleMove(new Point(anchorLeft, anchorTop), motionTo,
-                    motionOffset, new Size(ActualWidth, ActualHeight), work, ShadowGutter, amplitudeDip);
+                targetOffset = MotionPlanner.EnsureVisibleMove(motion.Anchor, targetOffset,
+                    motion.Offset, new Size(ActualWidth, ActualHeight), work, ShadowGutter, amplitudeDip);
             }
             catch (Exception ex) { DiagnosticLog.Record("MainWindow.MotionBounds", ex); }
-            motionFrom = motionOffset;
-            motionStarted = DateTime.UtcNow;
             int duration = transitionMilliseconds;
             if (duration == 0 && mode == MotionPlanner.Tide) duration = 1400;
             if (duration == 0 && mode == MotionPlanner.Orbit) duration = 450;
-            currentMotionDuration = duration;
-            if (duration == 0) ApplyMotionOffset(motionTo);
-            else motionAnimationTimer.Start();
-            Vector distance = new Vector(motionTo.X - motionFrom.X, motionTo.Y - motionFrom.Y);
+            motion.BeginMove(targetOffset, duration, DateTime.UtcNow);
+            if (duration == 0) ApplyMotionOffset(motion.To);
+            Vector distance = new Vector(motion.To.X - motion.From.X, motion.To.Y - motion.From.Y);
             return dpiSource != null && dpiSource.CompositionTarget != null
                 ? dpiSource.CompositionTarget.TransformToDevice.Transform(distance).Length
                 : distance.Length;
         }
 
-        private int currentMotionDuration;
-
         private void AnimateMotion()
         {
-            double fraction = Math.Min(1, (DateTime.UtcNow - motionStarted).TotalMilliseconds / currentMotionDuration);
-            double eased = fraction * fraction * (3 - 2 * fraction);
-            ApplyMotionOffset(new Point(motionFrom.X + (motionTo.X - motionFrom.X) * eased,
-                motionFrom.Y + (motionTo.Y - motionFrom.Y) * eased));
-            if (fraction >= 1) motionAnimationTimer.Stop();
+            bool complete;
+            ApplyMotionOffset(motion.Interpolate(DateTime.UtcNow, out complete));
+            if (complete) motion.StopAnimation();
         }
 
         private void ApplyMotionOffset(Point offset)
         {
-            Point desired = new Point(anchorLeft + offset.X, anchorTop + offset.Y);
+            Point desired = new Point(motion.Anchor.X + offset.X, motion.Anchor.Y + offset.Y);
             try
             {
                 Point center = PointToScreen(new Point(ActualWidth / 2, ActualHeight / 2));
                 Rect work = GetWorkArea(System.Windows.Forms.Screen.FromPoint(
                     new System.Drawing.Point((int)center.X, (int)center.Y)));
-                desired = MotionPlanner.Constrain(new Point(anchorLeft, anchorTop), offset,
+                desired = MotionPlanner.Constrain(motion.Anchor, offset,
                     new Size(ActualWidth, ActualHeight), work, ShadowGutter);
             }
             catch (Exception ex) { DiagnosticLog.Record("MainWindow.MotionConstrain", ex); }
-            internalMotion = true;
-            try { Left = desired.X; Top = desired.Y; }
-            finally { internalMotion = false; }
-            motionOffset = new Point(Left - anchorLeft, Top - anchorTop);
+            motion.ApplyPosition(delegate { Left = desired.X; Top = desired.Y; },
+                delegate { return new Point(Left, Top); });
         }
 
         private Rect GetWorkArea(System.Windows.Forms.Screen screen)
@@ -568,11 +538,7 @@ namespace DesktopCountdown
 
         private void ResetMotionPosition()
         {
-            motionAnimationTimer.Stop();
-            internalMotion = true;
-            try { Left = anchorLeft; Top = anchorTop; }
-            finally { internalMotion = false; }
-            motionOffset = new Point();
+            motion.ResetPosition(delegate { Left = motion.Anchor.X; Top = motion.Anchor.Y; });
         }
 
         private void ToggleBreathing()
@@ -606,8 +572,7 @@ namespace DesktopCountdown
                 ResetMotionPosition();
                 DragMove();
                 SnapVisibleSurfaceToNearestEdge();
-                anchorLeft = Left;
-                anchorTop = Top;
+                motion.SetAnchor(Left, Top);
                 SaveSettings(false);
                 QueueAppearanceUpdate();
             }
@@ -617,8 +582,7 @@ namespace DesktopCountdown
         private void OpenSettings()
         {
             if (exiting) return;
-            motionTimer.Stop();
-            motionAnimationTimer.Stop();
+            motion.Pause();
             ResetMotionPosition();
             SettingsWindow dialog = new SettingsWindow(settings, clock.Status);
             dialog.MotionTrialRequested += delegate(object sender, MotionTrialEventArgs trial)
@@ -683,8 +647,7 @@ namespace DesktopCountdown
         {
             if (IsVisible)
             {
-                motionTimer.Stop();
-                motionAnimationTimer.Stop();
+                motion.Pause();
                 breathingTimer.Stop();
                 Hide();
                 visibilityTrayItem.Text = "显示";
@@ -722,8 +685,8 @@ namespace DesktopCountdown
         {
             try
             {
-                settings.Left = anchorLeft;
-                settings.Top = anchorTop;
+                settings.Left = motion.Anchor.X;
+                settings.Top = motion.Anchor.Y;
                 if (applyStartup)
                     StartupService.ApplyAndSave(settings.StartWithWindows, settings.StartupMode,
                         Process.GetCurrentProcess().MainModule.FileName, () => SettingsStore.Save(settings));
@@ -801,8 +764,7 @@ namespace DesktopCountdown
             {
                 ResetMotionPosition();
                 EnsureVisiblePosition();
-                anchorLeft = Left;
-                anchorTop = Top;
+                motion.SetAnchor(Left, Top);
                 ConfigureMotion();
                 QueueAppearanceUpdate();
             });
@@ -819,8 +781,7 @@ namespace DesktopCountdown
             if (!exiting)
             {
                 e.Cancel = true;
-                motionTimer.Stop();
-                motionAnimationTimer.Stop();
+                motion.Pause();
                 breathingTimer.Stop();
                 Hide();
                 visibilityTrayItem.Text = "显示";
@@ -834,8 +795,7 @@ namespace DesktopCountdown
             SaveSettings(false);
             countdownTimer.Stop();
             appearanceTimer.Stop();
-            motionTimer.Stop();
-            motionAnimationTimer.Stop();
+            motion.Pause();
             breathingTimer.Stop();
             clock.Dispose();
             trayIcon.Visible = false;

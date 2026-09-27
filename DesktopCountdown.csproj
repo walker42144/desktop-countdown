@@ -57,6 +57,7 @@
     <Compile Include="src\DesktopCountdown\IconFactory.cs" />
     <Compile Include="src\DesktopCountdown\MainWindow.cs" />
     <Compile Include="src\DesktopCountdown\MotionPlanner.cs" />
+    <Compile Include="src\DesktopCountdown\MotionSession.cs" />
     <Compile Include="src\DesktopCountdown\NativeWindowOps.cs" />
     <Compile Include="src\DesktopCountdown\Program.cs" />
     <Compile Include="src\DesktopCountdown\PreviewRenderer.cs" />

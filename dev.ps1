@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DesktopHost.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsLayout.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1', 'ThemeContract.Tests.ps1', 'WallpaperColor.Tests.ps1')
+    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DesktopHost.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'MotionSession.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsLayout.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1', 'ThemeContract.Tests.ps1', 'WallpaperColor.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -96,6 +96,11 @@ function Invoke-Test {
         'hides seconds only for the default format and changes refresh need',
         'uses rendered tokens for custom refresh including quoted and escaped text',
         'keeps custom sign and total-hours formatting',
+        'keeps the public planner contract and owns window motion state',
+        'starts pauses and resumes only when motion is active',
+        'preserves the anchor while applying and resets after a trial',
+        'keeps step order and interpolates a move',
+        'keeps all six planner routes independent of the mutable public catalog',
         'preserves default JSON fields and values',
         'preserves legacy JSON values and supplies new defaults',
         'keeps public constants and removes display dependencies from settings',
