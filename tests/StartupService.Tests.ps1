@@ -49,6 +49,19 @@ function Get-StartupError([scriptblock]$action) {
 }
 
 Describe 'DesktopCountdown startup consistency' {
+    It 'retains the legacy registry-only startup signature without touching tasks' {
+        $legacy = $assembly.GetType('DesktopCountdown.SettingsStore', $true).GetMethod('ApplyStartupSetting')
+        $legacy.ReturnType | Should Be ([void])
+        (@($legacy.GetParameters() | ForEach-Object { $_.ParameterType.FullName }) -join ',') |
+            Should Be 'System.Boolean,System.String'
+        $storeSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\SettingsStore.cs') -Raw
+        $backendSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\StartupBackend.cs') -Raw
+        $storeSource | Should Match 'StartupBackend\.SetLegacyRegistry\('
+        $backendSource | Should Match 'SetLegacyRegistry\(string command\)'
+        $backendSource | Should Match 'WriteRegistry\(command, false\)'
+        $backendSource | Should Match 'WriteRegistry\(command, true\)'
+    }
+
     It 'keeps the public Apply signature unchanged' {
         $method = $serviceType.GetMethod('Apply', [System.Reflection.BindingFlags]'Static,Public')
         $method.ReturnType | Should Be ([void])

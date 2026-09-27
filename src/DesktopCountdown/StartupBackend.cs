@@ -71,9 +71,23 @@ namespace DesktopCountdown
 
         private static void WriteNativeRegistry(string command)
         {
+            WriteRegistry(command, true);
+        }
+
+        internal static void SetLegacyRegistry(string command)
+        {
+            WriteRegistry(command, false);
+        }
+
+        private static void WriteRegistry(string command, bool failWhenUnavailable)
+        {
             using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
             {
-                if (key == null) throw new InvalidOperationException("无法访问当前用户的启动项。");
+                if (key == null)
+                {
+                    if (failWhenUnavailable) throw new InvalidOperationException("无法访问当前用户的启动项。");
+                    return;
+                }
                 if (command == null) key.DeleteValue(RunValue, false);
                 else key.SetValue(RunValue, command);
             }

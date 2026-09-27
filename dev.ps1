@@ -118,6 +118,7 @@ function Invoke-Test {
         'preserves original and backup bytes if replacement fails',
         'does not treat an unreadable existing file as first run',
         'keeps the public Apply signature unchanged',
+        'retains the legacy registry-only startup signature without touching tasks',
         'distinguishes a missing task from other query failures',
         'switches between task and registry without duplicate entries',
         'restores registry state when task creation fails',

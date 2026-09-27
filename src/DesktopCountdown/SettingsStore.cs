@@ -1,4 +1,3 @@
-using Microsoft.Win32;
 using System;
 using System.IO;
 
@@ -6,9 +5,6 @@ namespace DesktopCountdown
 {
     public static class SettingsStore
     {
-        private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        private const string RunValueName = "DesktopCountdown";
-
         public static string SettingsDirectory
         {
             get
@@ -34,14 +30,8 @@ namespace DesktopCountdown
 
         public static void ApplyStartupSetting(bool enabled, string executablePath)
         {
-            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKeyPath))
-            {
-                if (key == null) return;
-                if (enabled)
-                    key.SetValue(RunValueName, "\"" + executablePath + "\"");
-                else
-                    key.DeleteValue(RunValueName, false);
-            }
+            // Retain the legacy registry-only contract for external callers.
+            StartupBackend.SetLegacyRegistry(enabled ? "\"" + executablePath + "\"" : null);
         }
     }
 }
