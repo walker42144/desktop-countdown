@@ -1,6 +1,4 @@
-using Microsoft.Win32;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Security.Principal;
 using System.Text;
@@ -10,43 +8,108 @@ namespace DesktopCountdown
 {
     public static class StartupService
     {
-        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        private const string RunValue = "DesktopCountdown";
-        private const string TaskName = "DesktopCountdown_UserLogon";
-
         public static void Apply(bool enabled, string mode, string executable)
         {
-            if (enabled && mode == "Task")
-            {
-                RegisterTask(executable);
-                SetRegistry(false, executable);
-            }
-            else
-            {
-                SetRegistry(enabled, executable);
-                RemoveTaskIfPresent();
-            }
+            ApplyWithBackend(new StartupBackend(), enabled, mode, executable, null);
         }
 
-        private static void SetRegistry(bool enabled, string executable)
+        internal static void ApplyAndSave(bool enabled, string mode, string executable, Action saveSettings)
         {
-            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
+            ApplyWithBackend(new StartupBackend(), enabled, mode, executable, saveSettings);
+        }
+
+        internal static void ApplyWithBackend(StartupBackend backend, bool enabled, string mode,
+            string executable, Action saveSettings)
+        {
+            if (backend == null) throw new ArgumentNullException("backend");
+            StartupState previous = backend.Capture();
+            try
             {
-                if (key == null) throw new InvalidOperationException("无法访问当前用户的启动项。");
-                if (enabled) key.SetValue(RunValue, "\"" + executable + "\"");
-                else key.DeleteValue(RunValue, false);
+                if (enabled && mode == "Task")
+                {
+                    backend.SetRegistry(null);
+                    backend.SetTask(CreateTaskXml(executable));
+                }
+                else
+                {
+                    backend.RemoveTask();
+                    backend.SetRegistry(enabled ? "\"" + executable + "\"" : null);
+                }
+                VerifyDesired(backend.Capture(), enabled, mode, executable);
+                if (saveSettings != null) saveSettings();
+            }
+            catch (Exception ex)
+            {
+                string recovery = Restore(backend, previous);
+                throw new InvalidOperationException("登录启动或设置保存失败：" + ex.Message +
+                    "；补偿结果：" + recovery + "；当前状态：" + DescribeState(backend), ex);
             }
         }
 
-        private static void RegisterTask(string executable)
+        private static string CreateTaskXml(string executable)
         {
             string temporary = Path.Combine(Path.GetTempPath(), "DesktopCountdown-" + Guid.NewGuid().ToString("N") + ".xml");
             try
             {
                 WriteTaskXml(temporary, executable);
-                RunSchtasks("/Create /F /TN \"" + TaskName + "\" /XML \"" + temporary + "\"");
+                return File.ReadAllText(temporary, Encoding.Unicode);
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        }
+
+        private static void VerifyDesired(StartupState actual, bool enabled, string mode, string executable)
+        {
+            string expectedRegistry = enabled && mode != "Task" ? "\"" + executable + "\"" : null;
+            bool taskExpected = enabled && mode == "Task";
+            if (!string.Equals(actual.RegistryCommand, expectedRegistry, StringComparison.Ordinal) ||
+                (actual.TaskXml != null) != taskExpected ||
+                (taskExpected && !string.Equals(TaskCommand(actual.TaskXml), executable, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("读取到的实际登录启动状态与请求不一致。");
+        }
+
+        private static string TaskCommand(string xml)
+        {
+            XmlDocument document = new XmlDocument();
+            document.LoadXml(xml);
+            XmlNode command = document.SelectSingleNode("//*[local-name()='Actions']/*[local-name()='Exec']/*[local-name()='Command']");
+            return command == null ? null : command.InnerText;
+        }
+
+        private static string Restore(StartupBackend backend, StartupState previous)
+        {
+            string taskError = null;
+            string registryError = null;
+            try
+            {
+                if (previous.TaskXml == null) backend.RemoveTask();
+                else backend.SetTask(previous.TaskXml);
+            }
+            catch (Exception ex) { taskError = ex.Message; }
+            try { backend.SetRegistry(previous.RegistryCommand); }
+            catch (Exception ex) { registryError = ex.Message; }
+
+            if (taskError != null || registryError != null)
+                return "未完全恢复（任务：" + (taskError ?? "已恢复") + "；注册表：" + (registryError ?? "已恢复") + "）";
+            try
+            {
+                StartupState actual = backend.Capture();
+                if (string.Equals(actual.RegistryCommand, previous.RegistryCommand, StringComparison.Ordinal) &&
+                    string.Equals(actual.TaskXml, previous.TaskXml, StringComparison.Ordinal))
+                    return "已恢复原状态";
+                return "读取状态与原状态不一致，需人工核对";
+            }
+            catch (Exception ex) { return "无法核验恢复结果：" + ex.Message; }
+        }
+
+        private static string DescribeState(StartupBackend backend)
+        {
+            try
+            {
+                StartupState actual = backend.Capture();
+                return "注册表=" + (actual.RegistryCommand ?? "无") + "，计划任务=" +
+                    (actual.TaskXml == null ? "无" : (TaskCommand(actual.TaskXml) ?? "存在，命令未识别"));
+            }
+            catch (Exception ex) { return "无法读取（" + ex.Message + "）"; }
         }
 
         private static void WriteTaskXml(string path, string executable)
@@ -93,31 +156,5 @@ namespace DesktopCountdown
             }
         }
 
-        private static void RemoveTaskIfPresent()
-        {
-            if (RunSchtasks("/Query /TN \"" + TaskName + "\"", true) == 0)
-                RunSchtasks("/Delete /F /TN \"" + TaskName + "\"");
-        }
-
-        private static int RunSchtasks(string arguments, bool ignoreFailure = false)
-        {
-            using (Process process = new Process())
-            {
-                process.StartInfo = new ProcessStartInfo("schtasks.exe", arguments)
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true
-                };
-                process.Start();
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
-                if (process.ExitCode != 0 && !ignoreFailure)
-                    throw new InvalidOperationException("无法配置登录启动任务：" + error + output);
-                return process.ExitCode;
-            }
-        }
     }
 }

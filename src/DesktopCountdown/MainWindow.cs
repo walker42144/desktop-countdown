@@ -730,15 +730,16 @@ namespace DesktopCountdown
                 settings.Left = anchorLeft;
                 settings.Top = anchorTop;
                 if (applyStartup)
-                    StartupService.Apply(settings.StartWithWindows, settings.StartupMode,
-                        Process.GetCurrentProcess().MainModule.FileName);
-                SettingsStore.Save(settings);
+                    StartupService.ApplyAndSave(settings.StartWithWindows, settings.StartupMode,
+                        Process.GetCurrentProcess().MainModule.FileName, () => SettingsStore.Save(settings));
+                else
+                    SettingsStore.Save(settings);
                 return true;
             }
             catch (Exception ex)
             {
                 if (applyStartup)
-                    MessageBox.Show("设置未能保存，登录启动设置未生效：" + ex.Message,
+                    MessageBox.Show("设置未能保存。" + ex.Message,
                         "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }

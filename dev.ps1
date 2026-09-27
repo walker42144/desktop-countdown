@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $expectedFiles = @('Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TestDiscovery.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -86,6 +86,13 @@ function Invoke-Test {
         'reports interrupted first save instead of hiding the temporary file',
         'preserves original and backup bytes if replacement fails',
         'does not treat an unreadable existing file as first run',
+        'keeps the public Apply signature unchanged',
+        'distinguishes a missing task from other query failures',
+        'switches between task and registry without duplicate entries',
+        'restores registry state when task creation fails',
+        'restores task state when task deletion fails',
+        'restores task state when registry write fails',
+        'restores startup state when configuration save fails',
         'fails when the required startup module is missing',
         'returns a nonzero test command exit code when startup is missing'
     )
