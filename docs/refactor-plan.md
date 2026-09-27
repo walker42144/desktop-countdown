@@ -134,6 +134,8 @@
 
 ## R11：位移会话状态封装
 
+实施记录：R11 曾按用户要求跳过，后于 R14 完成后单独补做，提交 `8b45cbd`；自动化验证通过，副屏贴边和试运行复位仍待用户实机确认。
+
 - **目标**：把主窗口中的位移计时、当前位置、动画进度封装为单独会话，减少互相覆盖。
 - **背景**：P2-03、P2-07，仅处理位移状态这一主题。
 - **修改范围（最多 5 个文件）**：`MainWindow.cs`、`MotionPlanner.cs`、`DesktopCountdown.csproj`、新增 `MotionSession.cs`、新增 `tests/MotionSession.Tests.ps1`。
@@ -172,7 +174,7 @@
 
 - **目标**：将设置窗口的单个超长构造函数拆成可定位的分组构造，不改变外观及交互。
 - **背景**：P2-07；本阶段只处理设置窗口布局组织。
-- **前置调整**：R11 已按用户要求跳过；本阶段仅依赖 R08、R10 的稳定格式与主题契约，保留现有位移状态和试运行流程，不把 R11 的工作并入本阶段。
+- **前置调整**：执行 R14 时 R11 按用户要求跳过；本阶段仅依赖 R08、R10 的稳定格式与主题契约，未把 R11 的工作并入 R14。R11 后续另行独立提交。
 - **修改范围（最多 4 个文件）**：`SettingsWindow.cs`、`DesktopCountdown.csproj`、新增 `SettingsSections.cs`、新增 `tests/SettingsLayout.Tests.ps1`。
 - **具体步骤**：先保存浅色/深色及副屏布局截图；逐组搬移控件创建和事件绑定；保留 `SettingsWindow` 的构造函数、`Result`、`OpenOnScreen` 与事件。每搬一组就运行布局测试，不一次性重写。
 - **验收命令**：`pwsh -File .\dev.ps1 check`；`pwsh -NoProfile -Command "Start-Process -Wait -FilePath '.\artifacts\baseline-build\DesktopCountdown.exe' -ArgumentList '--render-settings'"`，检查生成的浅色/深色图片，并人工比对副屏布局。
