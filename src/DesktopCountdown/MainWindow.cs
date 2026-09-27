@@ -480,7 +480,7 @@ namespace DesktopCountdown
                 verticalEdge = Math.Abs(anchorTop + ShadowGutter - work.Top) < 8 ||
                     Math.Abs(anchorTop + ActualHeight - ShadowGutter - work.Bottom) < 8;
             }
-            catch { }
+            catch (Exception ex) { DiagnosticLog.Record("MainWindow.MotionEdge", ex); }
             Point previousPixels = motionOffset;
             PresentationSource dpiSource = PresentationSource.FromVisual(this);
             if (dpiSource != null && dpiSource.CompositionTarget != null)
@@ -510,7 +510,7 @@ namespace DesktopCountdown
                 motionTo = MotionPlanner.EnsureVisibleMove(new Point(anchorLeft, anchorTop), motionTo,
                     motionOffset, new Size(ActualWidth, ActualHeight), work, ShadowGutter, amplitudeDip);
             }
-            catch { }
+            catch (Exception ex) { DiagnosticLog.Record("MainWindow.MotionBounds", ex); }
             motionFrom = motionOffset;
             motionStarted = DateTime.UtcNow;
             int duration = transitionMilliseconds;
@@ -547,7 +547,7 @@ namespace DesktopCountdown
                 desired = MotionPlanner.Constrain(new Point(anchorLeft, anchorTop), offset,
                     new Size(ActualWidth, ActualHeight), work, ShadowGutter);
             }
-            catch { }
+            catch (Exception ex) { DiagnosticLog.Record("MainWindow.MotionConstrain", ex); }
             internalMotion = true;
             try { Left = desired.X; Top = desired.Y; }
             finally { internalMotion = false; }

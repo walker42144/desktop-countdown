@@ -439,7 +439,7 @@ namespace DesktopCountdown
                     DwmSetWindowAttribute(handle, 38, ref mica, sizeof(int));
                 }
             }
-            catch { }
+            catch (Exception ex) { DiagnosticLog.Record("SettingsWindow.Backdrop", ex); }
         }
 
         private void InstallModernStyles(bool dark)

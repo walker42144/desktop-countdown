@@ -59,7 +59,7 @@ function Invoke-Test {
     & $buildScript -SkipSmokeTest -OutputDirectory $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     Import-Module Pester -MinimumVersion 3.4 -ErrorAction Stop
-    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DisplayFormats.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1')
+    $expectedFiles = @('AccurateClock.Tests.ps1', 'Baseline.Tests.ps1', 'BuildInventory.Tests.ps1', 'DiagnosticLog.Tests.ps1', 'DisplayFormats.Tests.ps1', 'SettingsDefaults.Tests.ps1', 'SettingsStore.Tests.ps1', 'StartupService.Tests.ps1', 'TargetTime.Tests.ps1', 'TestDiscovery.Tests.ps1')
     $testFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -File -Recurse -Filter '*.Tests.ps1' | Sort-Object FullName)
     $actualFiles = @($testFiles | ForEach-Object Name)
     $missingFiles = @($expectedFiles | Where-Object { $actualFiles -notcontains $_ })
@@ -75,6 +75,10 @@ function Invoke-Test {
         'rejects a source file omitted from the project list',
         'rejects duplicate project compile entries',
         'rejects project entries whose source file is missing',
+        'rotates into one bounded archive',
+        'does not persist exception messages or path-shaped contexts',
+        'returns failure without throwing when the directory is unwritable',
+        'does not create a file for a missing exception',
         'keeps default countdown text and its three display parts',
         'keeps elapsed sign and day padding at the boundary',
         'hides seconds only for the default format and changes refresh need',

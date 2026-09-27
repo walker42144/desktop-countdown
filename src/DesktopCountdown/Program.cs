@@ -73,7 +73,10 @@ namespace DesktopCountdown
             try { return SettingsStore.Load(); }
             catch (Exception ex)
             {
-                MessageBox.Show("无法读取设置：" + ex.Message + "\n\n本次将使用默认设置。原设置文件、临时文件和备份均未删除；请检查：\n" +
+                bool logged = DiagnosticLog.Record("Program.LoadSettings", ex);
+                MessageBox.Show("无法读取设置，本次将使用默认设置。" +
+                    (logged ? "故障类型已记录到本地诊断日志。" : "本地诊断日志未能写入。") +
+                    "\n\n原设置文件、临时文件和备份均未删除；请检查：\n" +
                     SettingsStore.SettingsPath + "\n" + SettingsStore.SettingsPath + ".bak",
                     "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return AppSettings.CreateDefault();
@@ -82,15 +85,9 @@ namespace DesktopCountdown
 
         private static void UnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            try
-            {
-                Directory.CreateDirectory(SettingsStore.SettingsDirectory);
-                File.AppendAllText(Path.Combine(SettingsStore.SettingsDirectory, "error.log"),
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + Environment.NewLine + e.Exception + Environment.NewLine + Environment.NewLine);
-            }
-            catch { }
-
-            MessageBox.Show("程序遇到错误，详情已记录到本地日志。\n\n" + e.Exception.Message,
+            bool logged = DiagnosticLog.Record("Program.UnhandledException", e.Exception);
+            MessageBox.Show(logged ? "程序遇到错误，故障类型已记录到本地诊断日志。" :
+                "程序遇到错误，且本地诊断日志未能写入。",
                 "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         }

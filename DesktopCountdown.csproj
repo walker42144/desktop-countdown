@@ -50,6 +50,7 @@
     <Compile Include="src\DesktopCountdown\ClockSource.cs" />
     <Compile Include="src\DesktopCountdown\AppSettings.cs" />
     <Compile Include="src\DesktopCountdown\DesktopHostService.cs" />
+    <Compile Include="src\DesktopCountdown\DiagnosticLog.cs" />
     <Compile Include="src\DesktopCountdown\DisplayFormats.cs" />
     <Compile Include="src\DesktopCountdown\EdgeSnapCalculator.cs" />
     <Compile Include="src\DesktopCountdown\FluentTheme.cs" />
