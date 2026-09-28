@@ -29,9 +29,9 @@
 
 从 [Releases](https://github.com/walker42144/desktop-countdown/releases/latest) 下载：
 
-- `DesktopCountdown-v0.3.1.exe`：v0.3.1 单文件直接运行版。
+- `DesktopCountdown-v0.3.2.exe`：v0.3.2 单文件直接运行版。
 
-v0.3.1 的自动检查已通过；双屏 150% 缩放下的实机复测仍待完成。
+v0.3.2 的自动检查已通过。此版会记录内存变化与异常方法名，并在内存耗尽时退出，避免继续显示静止的倒计时；内存耗尽的最初原因仍待定位。双屏 150% 缩放下的实机复测仍待完成。
 
 当前发布文件未进行商业代码签名，因此 Windows 首次运行时可能显示未知发布者提示。
 
