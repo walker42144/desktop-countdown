@@ -3,6 +3,7 @@ $logType = $assembly.GetType('DesktopCountdown.DiagnosticLog', $true)
 $constructor = $logType.GetConstructor([System.Reflection.BindingFlags]'Instance,NonPublic',
     $null, [Type[]]@([string], [int]), $null)
 $writeMethod = $logType.GetMethod('Write', [System.Reflection.BindingFlags]'Instance,NonPublic')
+$memoryMethod = $logType.GetMethod('WriteMemory', [System.Reflection.BindingFlags]'Instance,NonPublic')
 
 function New-TestDiagnosticLog([string]$directory, [int]$limitBytes) {
     return $constructor.Invoke([object[]]@($directory, $limitBytes))
@@ -57,5 +58,28 @@ Describe 'DesktopCountdown diagnostic log' {
         $log = New-TestDiagnosticLog $directory 512
         (Write-TestDiagnosticLog $log 'Test.Null' $null) | Should Be $false
         (Get-ChildItem -LiteralPath $directory -File).Count | Should Be 0
+    }
+
+    It 'records bounded method frames without exception messages or file paths' {
+        $log = New-TestDiagnosticLog $directory 512
+        $secret = 'C:\Users\Private\sensitive-token.txt'
+        try { [int]::Parse($secret) | Out-Null }
+        catch { $failure = $_.Exception }
+        (Write-TestDiagnosticLog $log 'Test.Stack' $failure) | Should Be $true
+        $content = [System.IO.File]::ReadAllText((Join-Path $directory 'diagnostics.log'))
+        $content | Should Match 'Test.Stack System.Management.Automation.MethodInvocationException 0x'
+        $content | Should Match ' at='
+        $content | Should Not Match 'Private|sensitive-token|C:\\Users'
+        $content.Length -lt 512 | Should Be $true
+    }
+
+    It 'records bounded numeric memory samples without user data' {
+        $log = New-TestDiagnosticLog $directory 512
+        $arguments = [object[]]@('C:\Users\Private', [long]104857600, [long]73400320,
+            [long]12582912, [int]240)
+        $memoryMethod.Invoke($log, $arguments) | Should Be $true
+        $content = [System.IO.File]::ReadAllText((Join-Path $directory 'diagnostics.log'))
+        $content | Should Match 'Unknown Memory private=104857600 working=73400320 managed=12582912 handles=240'
+        $content | Should Not Match 'C:\\Users'
     }
 }

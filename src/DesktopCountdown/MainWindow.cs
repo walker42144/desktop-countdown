@@ -136,19 +136,26 @@ namespace DesktopCountdown
             countdownTimer.Tick += delegate
             {
                 countdownTimer.Stop();
-                UpdateCountdown();
-                ScheduleNextTick();
+                bool fatal = false;
+                try { UpdateCountdown(); }
+                catch (Exception ex)
+                {
+                    DiagnosticLog.Record("MainWindow.CountdownTick", ex);
+                    fatal = ex is OutOfMemoryException;
+                    throw;
+                }
+                finally { if (!fatal && !exiting) ScheduleNextTick(); }
             };
             appearanceTimer.Interval = TimeSpan.FromMilliseconds(350);
             appearanceTimer.Tick += delegate
             {
                 appearanceTimer.Stop();
-                UpdateAppearance();
+                RunTracked("MainWindow.AppearanceTick", UpdateAppearance);
             };
-            motion.StepTimer.Tick += delegate { MoveOnce(); };
-            motion.AnimationTimer.Tick += delegate { AnimateMotion(); };
+            motion.StepTimer.Tick += delegate { RunTracked("MainWindow.MotionStep", MoveOnce); };
+            motion.AnimationTimer.Tick += delegate { RunTracked("MainWindow.MotionAnimation", AnimateMotion); };
             breathingTimer.Interval = TimeSpan.FromSeconds(45);
-            breathingTimer.Tick += delegate { ToggleBreathing(); };
+            breathingTimer.Tick += delegate { RunTracked("MainWindow.BreathingTick", ToggleBreathing); };
 
             trayIcon = new System.Windows.Forms.NotifyIcon
             {
@@ -277,6 +284,16 @@ namespace DesktopCountdown
         {
             if (value.TargetNeedsRepair) return "目标时间无效，请重新设置";
             return value.HasConfiguredTarget ? value.Title : "双击设置目标时间";
+        }
+
+        private static void RunTracked(string context, Action action)
+        {
+            try { action(); }
+            catch (Exception ex)
+            {
+                DiagnosticLog.Record(context, ex);
+                throw;
+            }
         }
 
         private void UpdateCountdown()

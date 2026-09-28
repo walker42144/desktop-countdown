@@ -12,8 +12,8 @@ using System.Windows.Media.Imaging;
 [assembly: AssemblyDescription("简洁、准确、可随壁纸自适应的 Windows 桌面倒计时")]
 [assembly: AssemblyCompany("walker42144")]
 [assembly: AssemblyProduct("Desktop Countdown")]
-[assembly: AssemblyVersion("0.3.1.0")]
-[assembly: AssemblyFileVersion("0.3.1.0")]
+[assembly: AssemblyVersion("0.3.2.0")]
+[assembly: AssemblyFileVersion("0.3.2.0")]
 [assembly: ComVisible(false)]
 
 namespace DesktopCountdown
@@ -64,7 +64,10 @@ namespace DesktopCountdown
                 MainWindow window = new MainWindow(settings);
                 application.MainWindow = window;
                 window.Show();
-                return application.Run();
+                DiagnosticLog.RecordMemory("Program.Startup");
+                using (Timer memorySampler = new Timer(delegate { DiagnosticLog.RecordMemory("Program.MemorySample"); },
+                    null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)))
+                    return application.Run();
             }
         }
 
@@ -85,11 +88,22 @@ namespace DesktopCountdown
 
         private static void UnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
+            DiagnosticLog.RecordMemory("Program.UnhandledMemory");
             bool logged = DiagnosticLog.Record("Program.UnhandledException", e.Exception);
+            if (IsFatalUiException(e.Exception))
+            {
+                Environment.FailFast("桌面倒计时内存不足，已终止以避免显示过期时间。", e.Exception);
+                return;
+            }
             MessageBox.Show(logged ? "程序遇到错误，故障类型已记录到本地诊断日志。" :
                 "程序遇到错误，且本地诊断日志未能写入。",
                 "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
+        }
+
+        internal static bool IsFatalUiException(Exception error)
+        {
+            return error is OutOfMemoryException;
         }
 
         private static int RunSmokeTest()

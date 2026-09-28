@@ -85,4 +85,15 @@ Describe 'DesktopCountdown ordinary window behavior' {
         $arguments[0] = [System.Drawing.Rectangle]::new(-1450, 80, 500, 160)
         $method.Invoke($null, $arguments) | Should Be $true
     }
+
+    It 'treats out-of-memory as fatal and rearms recoverable countdown ticks' {
+        $program = $assembly.GetType('DesktopCountdown.Program', $true)
+        $classifier = $program.GetMethod('IsFatalUiException', [System.Reflection.BindingFlags]'Static,NonPublic')
+        $classifier.Invoke($null, [object[]]@([OutOfMemoryException]::new())) | Should Be $true
+        $classifier.Invoke($null, [object[]]@([InvalidOperationException]::new())) | Should Be $false
+        $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\MainWindow.cs') -Raw
+        $source | Should Match 'finally \{ if \(!fatal && !exiting\) ScheduleNextTick\(\); \}'
+        $programSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\Program.cs') -Raw
+        $programSource | Should Match 'Environment.FailFast\('
+    }
 }

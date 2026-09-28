@@ -1,6 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -26,19 +28,82 @@ namespace DesktopCountdown
             return Shared.Write(context, error);
         }
 
+        internal static bool RecordMemory(string context)
+        {
+            try
+            {
+                using (Process process = Process.GetCurrentProcess())
+                    return Shared.WriteMemory(context, process.PrivateMemorySize64,
+                        process.WorkingSet64, GC.GetTotalMemory(false), process.HandleCount);
+            }
+            catch { return false; }
+        }
+
         internal bool Write(string context, Exception error)
         {
             if (error == null) return false;
-            string safeContext = context != null && SafeContext.IsMatch(context) ? context : "Unknown";
-            string typeName = error.GetType().FullName;
-            if (typeName == null || typeName.Length > 120) typeName = "Exception";
-            string entry = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + " " +
-                safeContext + " " + typeName + " 0x" +
-                error.HResult.ToString("X8", CultureInfo.InvariantCulture) + Environment.NewLine;
-            byte[] bytes = new UTF8Encoding(false).GetBytes(entry);
-            lock (gate)
+            try
             {
-                try
+                string typeName = error.GetType().FullName;
+                if (typeName == null || typeName.Length > 120) typeName = "Exception";
+                string frames = SafeFrames(error);
+                string entry = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + " " +
+                    SafeName(context) + " " + typeName + " 0x" +
+                    error.HResult.ToString("X8", CultureInfo.InvariantCulture) +
+                    (frames.Length == 0 ? string.Empty : " at=" + frames) + Environment.NewLine;
+                return Append(entry);
+            }
+            catch { return false; }
+        }
+
+        internal bool WriteMemory(string context, long privateBytes, long workingBytes,
+            long managedBytes, int handles)
+        {
+            try
+            {
+                string entry = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + " " +
+                    SafeName(context) + " Memory private=" + privateBytes.ToString(CultureInfo.InvariantCulture) +
+                    " working=" + workingBytes.ToString(CultureInfo.InvariantCulture) +
+                    " managed=" + managedBytes.ToString(CultureInfo.InvariantCulture) +
+                    " handles=" + handles.ToString(CultureInfo.InvariantCulture) + Environment.NewLine;
+                return Append(entry);
+            }
+            catch { return false; }
+        }
+
+        private static string SafeName(string context)
+        {
+            return context != null && SafeContext.IsMatch(context) ? context : "Unknown";
+        }
+
+        private static string SafeFrames(Exception error)
+        {
+            try
+            {
+                StackFrame[] frames = new StackTrace(error, false).GetFrames();
+                if (frames == null) return string.Empty;
+                StringBuilder value = new StringBuilder();
+                for (int i = 0; i < frames.Length && i < 4; i++)
+                {
+                    MethodBase method = frames[i].GetMethod();
+                    if (method == null) continue;
+                    string name = (method.DeclaringType == null ? string.Empty : method.DeclaringType.FullName + ".") + method.Name;
+                    name = Regex.Replace(name, "[^A-Za-z0-9_.+`]", "_");
+                    if (name.Length > 60) name = name.Substring(0, 60);
+                    if (value.Length > 0) value.Append('>');
+                    value.Append(name);
+                }
+                return value.ToString();
+            }
+            catch { return string.Empty; }
+        }
+
+        private bool Append(string entry)
+        {
+            try
+            {
+                byte[] bytes = new UTF8Encoding(false).GetBytes(entry);
+                lock (gate)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(path));
                     if (File.Exists(path) && new FileInfo(path).Length + bytes.Length > maxBytes)
@@ -50,11 +115,8 @@ namespace DesktopCountdown
                         stream.Write(bytes, 0, bytes.Length);
                     return true;
                 }
-                catch
-                {
-                    return false;
-                }
             }
+            catch { return false; }
         }
     }
 }
