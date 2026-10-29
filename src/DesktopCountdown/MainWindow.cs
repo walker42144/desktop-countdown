@@ -38,6 +38,8 @@ namespace DesktopCountdown
         private readonly Run timeRun;
         private readonly Border accentLine;
         private readonly Grid decorationLayer;
+        private static readonly Brush BackdropDark = FrozenSolid(50, 0, 0, 0);
+        private static readonly Brush BackdropLight = FrozenSolid(44, 255, 255, 255);
         private TextBlock liveThemeLabel;
         private readonly DropShadowEffect shadow;
         private readonly System.Windows.Forms.NotifyIcon trayIcon;
@@ -45,6 +47,12 @@ namespace DesktopCountdown
         private readonly System.Windows.Forms.ToolStripMenuItem topmostTrayItem;
         private readonly System.Windows.Forms.ToolStripMenuItem visibilityTrayItem;
         private readonly IList<System.Windows.Forms.ToolStripMenuItem> themeTrayItems = new List<System.Windows.Forms.ToolStripMenuItem>();
+        private SolidColorBrush foregroundBrush;
+        private System.Windows.Media.Color foregroundBrushColor;
+        private string lastToolTip;
+        private string executablePath;
+        private Point lastMotionPixels = new Point(double.NaN, double.NaN);
+        private bool settingsOpen;
         private bool exiting;
         private bool sourceReady;
         private string wallpaperStatus = "尚未分析壁纸";
@@ -229,7 +237,7 @@ namespace DesktopCountdown
 
             clock.StatusChanged += delegate
             {
-                RunOnUi(delegate { ToolTip = BuildTooltip(); });
+                RunOnUi(UpdateToolTip);
             };
             SystemEvents.UserPreferenceChanged += SystemPreferenceChanged;
             SystemEvents.DisplaySettingsChanged += SystemDisplaySettingsChanged;
@@ -307,7 +315,7 @@ namespace DesktopCountdown
                 unitRun.Text = " 天  ";
                 timeRun.Text = settings.ShowSeconds ? "--:--:--" : "--:--";
                 UpdateLiveThemeLabel();
-                ToolTip = BuildTooltip();
+                UpdateToolTip();
                 return;
             }
 
@@ -323,7 +331,7 @@ namespace DesktopCountdown
             unitRun.Text = display.Unit;
             timeRun.Text = display.Time;
             UpdateLiveThemeLabel();
-            ToolTip = BuildTooltip();
+            UpdateToolTip();
         }
 
         private void ScheduleNextTick()
@@ -347,6 +355,22 @@ namespace DesktopCountdown
                 : motion.NextAt <= DateTime.MinValue ? "防烧屏：已暂停"
                 : "防烧屏：下次位移约 " + motion.NextAt.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
             return clock.Status + Environment.NewLine + wallpaperStatus + Environment.NewLine + motionStatus;
+        }
+
+        private void UpdateToolTip()
+        {
+            string value = BuildTooltip();
+            if (string.Equals(value, lastToolTip, StringComparison.Ordinal)) return;
+            lastToolTip = value;
+            ToolTip = value;
+        }
+
+        private static Brush FrozenSolid(byte alpha, byte red, byte green, byte blue)
+        {
+            SolidColorBrush brush = new SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(alpha, red, green, blue));
+            brush.Freeze();
+            return brush;
         }
 
         private void QueueAppearanceUpdate()
@@ -386,11 +410,15 @@ namespace DesktopCountdown
                 wallpaperStatus = settings.AutoColor ? "艺术主题使用内置高对比配色" : "正在使用手动文字颜色";
             }
 
-            SolidColorBrush brush = new SolidColorBrush(foreground);
-            brush.Freeze();
-            titleText.Foreground = brush;
+            if (foregroundBrush == null || foregroundBrushColor != foreground)
+            {
+                foregroundBrush = new SolidColorBrush(foreground);
+                foregroundBrush.Freeze();
+                foregroundBrushColor = foreground;
+            }
+            titleText.Foreground = foregroundBrush;
             titleText.Opacity = theme.TitleOpacity;
-            countdownText.Foreground = brush;
+            countdownText.Foreground = foregroundBrush;
             countdownText.FontWeight = theme.DigitWeight;
             shadow.Color = shadowColor;
             shadow.Opacity = theme.ShadowOpacity;
@@ -408,12 +436,10 @@ namespace DesktopCountdown
             else if (theme.TransparentWhenCalm && !useBackdrop)
                 surface.Background = Brushes.Transparent;
             else if (useBackdrop)
-                surface.Background = new SolidColorBrush(foreground.R > 128
-                    ? System.Windows.Media.Color.FromArgb(50, 0, 0, 0)
-                    : System.Windows.Media.Color.FromArgb(44, 255, 255, 255));
+                surface.Background = foreground.R > 128 ? BackdropDark : BackdropLight;
             else
                 surface.Background = theme.Background;
-            ToolTip = BuildTooltip();
+            UpdateToolTip();
         }
 
         private string FormatCurrentDateTime()
@@ -436,7 +462,7 @@ namespace DesktopCountdown
             breathingDimmed = false;
             if (!IsLoaded || !IsVisible) return;
             if (settings.VisualBreathing) breathingTimer.Start();
-            ToolTip = BuildTooltip();
+            UpdateToolTip();
         }
 
         private void MoveOnce()
@@ -444,7 +470,7 @@ namespace DesktopCountdown
             MoveOnceCore(settings.MotionMode, settings.MotionAmplitudePixels,
                 settings.MotionTransitionMilliseconds, false);
             motion.ScheduleNext(DateTime.Now);
-            ToolTip = BuildTooltip();
+            UpdateToolTip();
         }
 
         private double MoveOnceCore(string mode, int amplitudePixels, int transitionMilliseconds, bool trial)
@@ -497,6 +523,7 @@ namespace DesktopCountdown
             int duration = transitionMilliseconds;
             if (duration == 0 && mode == MotionPlanner.Tide) duration = 1400;
             if (duration == 0 && mode == MotionPlanner.Orbit) duration = 450;
+            lastMotionPixels = new Point(double.NaN, double.NaN);
             motion.BeginMove(targetOffset, duration, DateTime.UtcNow);
             if (duration == 0) ApplyMotionOffset(motion.To);
             Vector distance = new Vector(motion.To.X - motion.From.X, motion.To.Y - motion.From.Y);
@@ -508,8 +535,24 @@ namespace DesktopCountdown
         private void AnimateMotion()
         {
             bool complete;
-            ApplyMotionOffset(motion.Interpolate(DateTime.UtcNow, out complete));
+            Point next = motion.Interpolate(DateTime.UtcNow, out complete);
+            Point pixel = DevicePixelOf(motion.Anchor.X + next.X, motion.Anchor.Y + next.Y);
+            // Moving a layered window costs a full composition flush; sub-pixel steps would issue
+            // the same SetWindowPos, so only apply when the integer device position changes.
+            if (complete || pixel.X != lastMotionPixels.X || pixel.Y != lastMotionPixels.Y)
+            {
+                ApplyMotionOffset(next);
+                lastMotionPixels = pixel;
+            }
             if (complete) motion.StopAnimation();
+        }
+
+        private Point DevicePixelOf(double left, double top)
+        {
+            PresentationSource source = PresentationSource.FromVisual(this);
+            if (source == null || source.CompositionTarget == null) return new Point(left, top);
+            Vector device = source.CompositionTarget.TransformToDevice.Transform(new Vector(left, top));
+            return new Point(Math.Round(device.X), Math.Round(device.Y));
         }
 
         private void ApplyMotionOffset(Point offset)
@@ -542,6 +585,7 @@ namespace DesktopCountdown
 
         private void ResetMotionPosition()
         {
+            lastMotionPixels = new Point(double.NaN, double.NaN);
             motion.ResetPosition(delegate { Left = motion.Anchor.X; Top = motion.Anchor.Y; });
         }
 
@@ -585,35 +629,40 @@ namespace DesktopCountdown
 
         private void OpenSettings()
         {
-            if (exiting) return;
-            motion.Pause();
-            ResetMotionPosition();
-            SettingsWindow dialog = new SettingsWindow(settings, clock.Status);
-            dialog.MotionTrialRequested += delegate(object sender, MotionTrialEventArgs trial)
+            if (exiting || settingsOpen) return;
+            settingsOpen = true;
+            try
             {
-                trial.PlannedDistancePixels = MoveOnceCore(trial.Mode, trial.AmplitudePixels,
-                    trial.TransitionMilliseconds, true);
-            };
-            dialog.Owner = this;
-            dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            bool? accepted = dialog.ShowDialog();
-            if (accepted == true)
-            {
-                AppSettings previousSettings = settings;
-                settings = dialog.Result;
-                settings.Validate();
-                ApplySettingsToView();
-                // Retry even when the selection is unchanged: an earlier task creation
-                // may have failed after its desired mode was saved to settings.json.
-                if (!SaveSettings(true))
+                motion.Pause();
+                ResetMotionPosition();
+                SettingsWindow dialog = new SettingsWindow(settings, clock.Status);
+                dialog.MotionTrialRequested += delegate(object sender, MotionTrialEventArgs trial)
                 {
-                    settings = previousSettings;
+                    trial.PlannedDistancePixels = MoveOnceCore(trial.Mode, trial.AmplitudePixels,
+                        trial.TransitionMilliseconds, true);
+                };
+                dialog.Owner = this;
+                dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+                bool? accepted = dialog.ShowDialog();
+                if (accepted == true)
+                {
+                    AppSettings previousSettings = settings;
+                    settings = dialog.Result;
+                    settings.Validate();
                     ApplySettingsToView();
+                    // Retry even when the selection is unchanged: an earlier task creation
+                    // may have failed after its desired mode was saved to settings.json.
+                    if (!SaveSettings(true))
+                    {
+                        settings = previousSettings;
+                        ApplySettingsToView();
+                    }
+                    clock.SyncAsync();
                 }
-                clock.SyncAsync();
+                ResetMotionPosition();
+                ConfigureMotion();
             }
-            ResetMotionPosition();
-            ConfigureMotion();
+            finally { settingsOpen = false; }
         }
 
         private void ToggleLock()
@@ -676,7 +725,7 @@ namespace DesktopCountdown
                 settings.Top = motion.Anchor.Y;
                 if (applyStartup)
                     StartupService.ApplyAndSave(settings.StartWithWindows, settings.StartupMode,
-                        Process.GetCurrentProcess().MainModule.FileName, () => SettingsStore.Save(settings));
+                        ExecutablePath(), () => SettingsStore.Save(settings));
                 else
                     SettingsStore.Save(settings);
                 return true;
@@ -688,6 +737,14 @@ namespace DesktopCountdown
                         "桌面倒计时", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
+        }
+
+        private string ExecutablePath()
+        {
+            if (executablePath == null)
+                using (Process process = Process.GetCurrentProcess())
+                    executablePath = process.MainModule.FileName;
+            return executablePath;
         }
 
         private void EnsureVisiblePosition()
@@ -759,6 +816,11 @@ namespace DesktopCountdown
 
         private void SystemPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
+            UserPreferenceCategory category = e == null ? UserPreferenceCategory.General : e.Category;
+            if (category != UserPreferenceCategory.Desktop &&
+                category != UserPreferenceCategory.VisualStyle &&
+                category != UserPreferenceCategory.General)
+                return;
             WallpaperColorService.Invalidate();
             RunOnUi(QueueAppearanceUpdate);
         }

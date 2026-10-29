@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -11,6 +12,9 @@ namespace DesktopCountdown
     internal sealed class DiagnosticLog
     {
         private const int DefaultMaxBytes = 256 * 1024;
+        private const int MaxSampleProcesses = 3;
+        private const uint GuiResourceGdi = 0;
+        private const uint GuiResourceUser = 1;
         private static readonly Regex SafeContext = new Regex(@"^[A-Za-z0-9_.-]{1,64}$", RegexOptions.Compiled);
         private static readonly DiagnosticLog Shared = new DiagnosticLog(SettingsStore.SettingsDirectory, DefaultMaxBytes);
         private readonly object gate = new object();
@@ -33,8 +37,52 @@ namespace DesktopCountdown
             try
             {
                 using (Process process = Process.GetCurrentProcess())
-                    return Shared.WriteMemory(context, process.PrivateMemorySize64,
-                        process.WorkingSet64, GC.GetTotalMemory(false), process.HandleCount);
+                {
+                    long commitBytes = 0;
+                    long commitLimitBytes = 0;
+                    long availablePhysicalBytes = 0;
+                    try
+                    {
+                        MemoryStatus status = new MemoryStatus();
+                        status.Length = (uint)Marshal.SizeOf(typeof(MemoryStatus));
+                        if (GlobalMemoryStatusEx(ref status))
+                        {
+                            commitLimitBytes = (long)status.TotalPageFile;
+                            commitBytes = (long)(status.TotalPageFile - status.AvailablePageFile);
+                            availablePhysicalBytes = (long)status.AvailablePhysical;
+                        }
+                    }
+                    catch { }
+
+                    return Shared.WriteMemorySample(context, process.PrivateMemorySize64,
+                        process.WorkingSet64, GC.GetTotalMemory(false), process.HandleCount,
+                        commitBytes, commitLimitBytes, availablePhysicalBytes,
+                        SafeGuiResources(process.Handle, GuiResourceGdi),
+                        SafeGuiResources(process.Handle, GuiResourceUser), TopProcesses());
+                }
+            }
+            catch { return false; }
+        }
+
+        internal bool WriteMemorySample(string context, long privateBytes, long workingBytes,
+            long managedBytes, int handles, long commitBytes, long commitLimitBytes,
+            long availablePhysicalBytes, int gdiObjects, int userObjects, string topProcesses)
+        {
+            try
+            {
+                string entry = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + " " +
+                    SafeName(context) + " Memory private=" + privateBytes.ToString(CultureInfo.InvariantCulture) +
+                    " working=" + workingBytes.ToString(CultureInfo.InvariantCulture) +
+                    " managed=" + managedBytes.ToString(CultureInfo.InvariantCulture) +
+                    " handles=" + handles.ToString(CultureInfo.InvariantCulture) +
+                    " gdi=" + gdiObjects.ToString(CultureInfo.InvariantCulture) +
+                    " user=" + userObjects.ToString(CultureInfo.InvariantCulture) +
+                    " commit=" + commitBytes.ToString(CultureInfo.InvariantCulture) +
+                    " limit=" + commitLimitBytes.ToString(CultureInfo.InvariantCulture) +
+                    " availablePhysical=" + availablePhysicalBytes.ToString(CultureInfo.InvariantCulture) +
+                    (topProcesses != null && topProcesses.Length > 0 ? " top=" + topProcesses : string.Empty) +
+                    Environment.NewLine;
+                return Append(entry);
             }
             catch { return false; }
         }
@@ -69,6 +117,90 @@ namespace DesktopCountdown
                 return Append(entry);
             }
             catch { return false; }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MemoryStatus
+        {
+            public uint Length;
+            public uint MemoryLoad;
+            public ulong TotalPhysical;
+            public ulong AvailablePhysical;
+            public ulong TotalPageFile;
+            public ulong AvailablePageFile;
+            public ulong TotalVirtual;
+            public ulong AvailableVirtual;
+            public ulong AvailableExtendedVirtual;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetGuiResources(IntPtr process, uint flags);
+
+        private static int SafeGuiResources(IntPtr process, uint kind)
+        {
+            try { return (int)GetGuiResources(process, kind); }
+            catch { return -1; }
+        }
+
+        private static string TopProcesses()
+        {
+            Process[] processes = null;
+            try
+            {
+                processes = Process.GetProcesses();
+                string[] names = new string[MaxSampleProcesses];
+                long[] sizes = new long[MaxSampleProcesses];
+                foreach (Process item in processes)
+                {
+                    if (item == null) continue;
+                    long size;
+                    string name;
+                    try
+                    {
+                        size = item.WorkingSet64;
+                        name = item.ProcessName;
+                    }
+                    catch { continue; }
+
+                    int slot = -1;
+                    for (int i = 0; i < names.Length; i++)
+                        if (names[i] == null || size > sizes[i]) { slot = i; break; }
+                    if (slot < 0) continue;
+                    for (int i = names.Length - 1; i > slot; i--)
+                    {
+                        names[i] = names[i - 1];
+                        sizes[i] = sizes[i - 1];
+                    }
+                    names[slot] = SafeProcessName(name);
+                    sizes[slot] = size;
+                }
+
+                StringBuilder value = new StringBuilder();
+                for (int i = 0; i < names.Length; i++)
+                {
+                    if (names[i] == null) continue;
+                    if (value.Length > 0) value.Append('|');
+                    value.Append(names[i]).Append(':').Append(sizes[i] / (1024 * 1024));
+                }
+                return value.ToString();
+            }
+            catch { return string.Empty; }
+            finally
+            {
+                if (processes != null)
+                    foreach (Process item in processes)
+                        if (item != null) item.Dispose();
+            }
+        }
+
+        private static string SafeProcessName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "unknown";
+            string value = Regex.Replace(name, "[^A-Za-z0-9._-]", "_");
+            return value.Length > 32 ? value.Substring(0, 32) : value;
         }
 
         private static string SafeName(string context)

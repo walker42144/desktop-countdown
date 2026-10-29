@@ -1,5 +1,13 @@
 # v0.3.1 内存异常诊断
 
+## 2026-10-29 诊断增强与降载（未发布）
+
+- 诊断日志的 `Memory` 行新增 `gdi=`、`user=`（`GetGuiResources`）、`commit=`/`limit=`（`GlobalMemoryStatusEx` 的页面文件口径，即系统提交量与上限）、`availablePhysical=`，以及 `top=`（按工作集排序的前三个进程名与 MB 数）。进程名按 `[A-Za-z0-9._-]` 过滤并截断到 32 字符；日志仍只写本地文件，不含路径与异常消息。
+- 本机临时探针验证：`GlobalMemoryStatusEx` 可用；`GetGuiResources` 只从 `user32.dll` 导出，从 `gdi32.dll` 导入会抛 `EntryPointNotFoundException`，因此 GDI 与 USER 两个计数都通过 `user32.dll` 的不同 flags 获取。
+- 内存耗尽（`System.OutOfMemoryException`）改为 `Environment.Exit(1)`。不再调用 `Environment.FailFast`，避免系统提交接近上限时 Windows 错误报告收集转储造成的长时间挂起；退出前仍先写入诊断行，同样不会留下过期倒计时。
+- 防烧屏动画只在窗口的整数设备像素位置变化时应用 `Left`/`Top`，同一像素位置不重复 `SetWindowPos`，减少透明分层窗口的合成刷新；运动轨迹不变。
+- 后续复测时先看新 `Memory` 行的 `commit`/`limit` 比例与 `top` 进程，判断 20GB 级别的系统提交由哪个进程占用；本进程若有增长，再对比 `gdi`/`user` 是否随时间累积。
+
 ## 已确认
 
 - 2026-09-28 的本地诊断日志记录 14 条 `Program.UnhandledException System.OutOfMemoryException 0x8007000E`，分成三个时间段（本地时间 UTC+8）：15:05:51（1 条）、15:22:50–15:22:59（4 条）、16:43:12–16:43:29（9 条）。这是三个异常时段，不代表进程崩溃或重启了 14 次。

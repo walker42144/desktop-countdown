@@ -252,11 +252,20 @@ namespace DesktopCountdown
             SetWindowPos(handle, IntPtr.Zero, x, y, 0, 0, 0x0001 | 0x0004 | 0x0010);
         }
 
+        private static string[] fontFamilyNames;
+
+        private static string[] FontFamilyNames()
+        {
+            if (fontFamilyNames == null)
+                fontFamilyNames = Fonts.SystemFontFamilies.Select(f => f.Source).Distinct()
+                    .OrderBy(f => f, StringComparer.CurrentCultureIgnoreCase).ToArray();
+            return fontFamilyNames;
+        }
+
         private static ComboBox CreateFontBox(string selected)
         {
             ComboBox box = new ComboBox { IsEditable = true, MaxDropDownHeight = 300 };
-            foreach (string font in Fonts.SystemFontFamilies.Select(f => f.Source).Distinct().OrderBy(f => f, StringComparer.CurrentCultureIgnoreCase))
-                box.Items.Add(font);
+            foreach (string font in FontFamilyNames()) box.Items.Add(font);
             box.Text = selected;
             return box;
         }

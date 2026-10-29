@@ -19,8 +19,10 @@ namespace DesktopCountdown
     public static class WallpaperColorService
     {
         private const int SpiGetDesktopWallpaper = 0x0073;
+        private const int MaximumSampleDimension = 2048;
         private static readonly object CacheGate = new object();
         private static Bitmap cachedBitmap;
+        private static Size cachedImageSize;
         private static string cachedPath;
         private static DateTime cachedWriteTimeUtc;
         private static long cachedLength;
@@ -67,6 +69,7 @@ namespace DesktopCountdown
             {
                 if (cachedBitmap != null) cachedBitmap.Dispose();
                 cachedBitmap = null;
+                cachedImageSize = Size.Empty;
                 cachedPath = null;
                 cachedAppearance = null;
             }
@@ -84,9 +87,11 @@ namespace DesktopCountdown
                     cachedWriteTimeUtc != writeTimeUtc || cachedLength != length)
                 {
                     Bitmap replacement;
-                    using (Bitmap source = new Bitmap(path)) replacement = new Bitmap(source);
+                    Size imageSize;
+                    replacement = LoadSampleBitmap(path, out imageSize);
                     if (cachedBitmap != null) cachedBitmap.Dispose();
                     cachedBitmap = replacement;
+                    cachedImageSize = imageSize;
                     cachedPath = path;
                     cachedWriteTimeUtc = writeTimeUtc;
                     cachedLength = length;
@@ -96,8 +101,8 @@ namespace DesktopCountdown
                 if (cachedAppearance == null || cachedWidget != widget || cachedDestination != destination ||
                     cachedStyle != style || cachedTile != tile)
                 {
-                    cachedAppearance = AnalyzeBitmap(cachedBitmap, widget, destination, style, tile,
-                        Path.GetFileName(path));
+                    cachedAppearance = AnalyzeBitmap(cachedBitmap, cachedImageSize, widget, destination,
+                        style, tile, Path.GetFileName(path));
                     cachedWidget = widget;
                     cachedDestination = destination;
                     cachedStyle = style;
@@ -119,8 +124,38 @@ namespace DesktopCountdown
             };
         }
 
-        private static WallpaperAppearance AnalyzeBitmap(Bitmap bitmap, Rectangle widget, Rectangle destination,
-            string style, bool tile, string fileName)
+        private static Bitmap LoadSampleBitmap(string path, out Size imageSize)
+        {
+            using (Bitmap source = new Bitmap(path))
+            {
+                imageSize = source.Size;
+                int largest = Math.Max(source.Width, source.Height);
+                if (largest <= MaximumSampleDimension) return new Bitmap(source);
+                double ratio = MaximumSampleDimension / (double)largest;
+                int width = Math.Max(1, (int)Math.Round(source.Width * ratio));
+                int height = Math.Max(1, (int)Math.Round(source.Height * ratio));
+                Bitmap sample = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(sample))
+                    {
+                        graphics.InterpolationMode =
+                            System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                        graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                        graphics.DrawImage(source, new Rectangle(0, 0, width, height));
+                    }
+                    return sample;
+                }
+                catch
+                {
+                    sample.Dispose();
+                    throw;
+                }
+            }
+        }
+
+        private static WallpaperAppearance AnalyzeBitmap(Bitmap bitmap, Size imageSize, Rectangle widget,
+            Rectangle destination, string style, bool tile, string fileName)
         {
             double sum = 0;
             double sumSquares = 0;
@@ -135,8 +170,10 @@ namespace DesktopCountdown
                 {
                     int screenX = widget.Left + (int)((xIndex + 0.5) * Math.Max(1, widget.Width) / samplesX);
                     Point source;
-                    if (!TryMapToWallpaper(screenX, screenY, destination, bitmap.Size, style, tile, out source)) continue;
-                    Color pixel = bitmap.GetPixel(source.X, source.Y);
+                    if (!TryMapToWallpaper(screenX, screenY, destination, imageSize, style, tile, out source)) continue;
+                    Color pixel = bitmap.GetPixel(
+                        ScaleToSample(source.X, imageSize.Width, bitmap.Width),
+                        ScaleToSample(source.Y, imageSize.Height, bitmap.Height));
                     double luminance = RelativeLuminance(pixel.R, pixel.G, pixel.B);
                     sum += luminance;
                     sumSquares += luminance * luminance;
@@ -211,6 +248,15 @@ namespace DesktopCountdown
             return true;
         }
 
+        private static int ScaleToSample(int coordinate, int imageLength, int bitmapLength)
+        {
+            if (imageLength <= 0 || bitmapLength <= 0) return 0;
+            int value = imageLength == bitmapLength
+                ? coordinate
+                : (int)(coordinate * (double)bitmapLength / imageLength);
+            return Math.Max(0, Math.Min(bitmapLength - 1, value));
+        }
+
         private static int PositiveModulo(int value, int divisor)
         {
             int result = value % divisor;
@@ -244,8 +290,15 @@ namespace DesktopCountdown
 
         private static string GetWallpaperPath()
         {
-            StringBuilder value = new StringBuilder(1024);
-            return SystemParametersInfo(SpiGetDesktopWallpaper, value.Capacity, value, 0) ? value.ToString() : string.Empty;
+            string value = string.Empty;
+            for (int capacity = 1024; capacity <= 8192; capacity *= 4)
+            {
+                StringBuilder buffer = new StringBuilder(capacity);
+                if (!SystemParametersInfo(SpiGetDesktopWallpaper, buffer.Capacity, buffer, 0)) continue;
+                value = buffer.ToString();
+                if (value.Length < capacity - 1) return value;
+            }
+            return value;
         }
 
         private static string ReadDesktopValue(string name, string fallback)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,10 +10,24 @@ namespace DesktopCountdown
     public static class ThemeCatalog
     {
         public const string DefaultTheme = SettingsDefaults.DefaultTheme;
+        private static readonly IList<ThemeDefinition> Catalog = BuildCatalog();
+        private static readonly Dictionary<string, ThemeDefinition> Index = BuildIndex();
 
         public static IList<ThemeDefinition> All()
         {
-            return new List<ThemeDefinition>
+            return Catalog;
+        }
+
+        public static ThemeDefinition Get(string key)
+        {
+            ThemeDefinition theme;
+            if (key != null && Index.TryGetValue(key, out theme)) return theme;
+            return Catalog[0];
+        }
+
+        private static IList<ThemeDefinition> BuildCatalog()
+        {
+            List<ThemeDefinition> themes = new List<ThemeDefinition>
             {
                 Theme("MinimalGlass", "极简玻璃", "Glass", "倒计时", true, false,
                     Solid(28, 14, 23, 31), Solid(58, 255, 255, 255), Solid(190, 103, 220, 205), Solid(130, 255, 133, 100),
@@ -60,13 +75,15 @@ namespace DesktopCountdown
                     Solid(248, 13, 55, 103), Solid(130, 126, 204, 255), Solid(255, 101, 211, 255), Solid(190, 255, 255, 255),
                     Color.FromRgb(231, 247, 255), Color.FromRgb(0, 18, 46), 2, new Thickness(36, 25, 36, 28), 0.42, 1, 72, 1, 0.76, FontWeights.SemiBold)
             };
+            return new ReadOnlyCollection<ThemeDefinition>(themes);
         }
 
-        public static ThemeDefinition Get(string key)
+        private static Dictionary<string, ThemeDefinition> BuildIndex()
         {
-            foreach (ThemeDefinition theme in All())
-                if (string.Equals(theme.Key, key, StringComparison.OrdinalIgnoreCase)) return theme;
-            return All()[0];
+            Dictionary<string, ThemeDefinition> index =
+                new Dictionary<string, ThemeDefinition>(StringComparer.OrdinalIgnoreCase);
+            foreach (ThemeDefinition theme in Catalog) index[theme.Key] = theme;
+            return index;
         }
 
         public static void ApplyPreview(Border panel, Grid decorationLayer, Border accentLine,
