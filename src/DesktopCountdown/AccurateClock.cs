@@ -43,7 +43,7 @@ namespace DesktopCountdown
                 lock (gate)
                 {
                     if (!calibrated) return source.UtcNow();
-                    return calibratedUtc + Elapsed(calibratedStamp, source.Timestamp());
+                    return calibratedUtc + ElapsedOrZero(calibratedStamp, source.Timestamp());
                 }
             }
         }
@@ -172,6 +172,12 @@ namespace DesktopCountdown
         private TimeSpan Elapsed(long start, long end)
         {
             if (end < start) throw new InvalidOperationException("单调时钟发生倒退");
+            return TimeSpan.FromSeconds((end - start) / (double)source.Frequency);
+        }
+
+        private TimeSpan ElapsedOrZero(long start, long end)
+        {
+            if (end < start) return TimeSpan.Zero;
             return TimeSpan.FromSeconds((end - start) / (double)source.Frequency);
         }
 

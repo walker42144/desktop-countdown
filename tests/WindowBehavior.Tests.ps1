@@ -94,6 +94,7 @@ Describe 'DesktopCountdown ordinary window behavior' {
         $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\MainWindow.cs') -Raw
         $source | Should Match 'finally \{ if \(!fatal && !exiting\) ScheduleNextTick\(\); \}'
         $programSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\Program.cs') -Raw
-        $programSource | Should Match 'Environment.FailFast\('
+        $programSource | Should Match 'Environment\.Exit\(1\)'
+        $programSource | Should Not Match 'Environment\.FailFast\('
     }
 }

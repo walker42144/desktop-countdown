@@ -92,7 +92,11 @@ namespace DesktopCountdown
             bool logged = DiagnosticLog.Record("Program.UnhandledException", e.Exception);
             if (IsFatalUiException(e.Exception))
             {
-                Environment.FailFast("桌面倒计时内存不足，已终止以避免显示过期时间。", e.Exception);
+                // Environment.FailFast makes Windows Error Reporting collect a dump, which can hang
+                // for minutes while the system commit limit is nearly exhausted. Exiting directly
+                // still prevents a stale countdown from staying on screen.
+                e.Handled = true;
+                Environment.Exit(1);
                 return;
             }
             MessageBox.Show(logged ? "程序遇到错误，故障类型已记录到本地诊断日志。" :
