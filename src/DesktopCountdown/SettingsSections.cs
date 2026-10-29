@@ -58,7 +58,7 @@ namespace DesktopCountdown
             AddWideRow(form, ref row, topmostBox);
             AddWideRow(form, ref row, startupBox);
             AddLabeledRow(form, ref row, "登录启动方式", startupModeBox);
-            AddHint(form, ref row, "登录任务在当前用户桌面中运行，启动前短暂等待系统桌面准备；无需后台常驻服务。");
+            AddHint(form, ref row, "登录任务在当前用户桌面中运行，启动前短暂等待系统桌面准备；无需后台常驻服务。未勾选上方开关时只保存方式，不会注册启动项。");
 
             AddSection(form, ref row, "时间校准");
             AddLabeledRow(form, ref row, "NTP服务器", ntpBox);
@@ -146,9 +146,8 @@ namespace DesktopCountdown
             motionBox.Unchecked += delegate { UpdateMotionPreview(); };
             autoColorBox.Checked += delegate { manualColorBox.IsEnabled = false; };
             autoColorBox.Unchecked += delegate { manualColorBox.IsEnabled = true; };
-            startupBox.Checked += delegate { startupModeBox.IsEnabled = true; };
-            startupBox.Unchecked += delegate { startupModeBox.IsEnabled = false; };
-            startupModeBox.IsEnabled = startupBox.IsChecked == true;
+            // Keep the startup mode selectable even while startup is off, so the choice can be
+            // prepared first and then take effect as soon as the checkbox is enabled.
             UpdatePreview();
             UpdateMotionPreview();
             motionPreviewTimer.Interval = TimeSpan.FromMilliseconds(900);

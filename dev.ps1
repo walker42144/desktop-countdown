@@ -110,6 +110,7 @@ function Invoke-Test {
         'keeps the public settings window contract',
         'splits grouped layout and bindings out of the constructor',
         'closes the nonmodal preview from its cancel button',
+        'keeps startup mode selectable while automatic startup is off',
         'renders both light and dark settings screenshots',
         'uses defaults only when settings and recovery files are absent',
         'loads a valid file and creates a byte-identical backup on save',

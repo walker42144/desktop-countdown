@@ -30,6 +30,14 @@ Describe 'DesktopCountdown settings layout' {
         $sections | Should Match 'cancel.Click \+= delegate \{ Close\(\); \};'
     }
 
+    It 'keeps startup mode selectable while automatic startup is off' {
+        $sections = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\SettingsSections.cs') -Raw
+        $settings = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\DesktopCountdown\SettingsWindow.cs') -Raw
+        $sections | Should Not Match 'startupModeBox\.IsEnabled'
+        $sections | Should Match '未勾选上方开关时只保存方式'
+        $settings | Should Match 'working\.StartupMode = startupModeBox\.SelectedIndex == 1 \? "Task" : "Registry";'
+    }
+
     It 'renders both light and dark settings screenshots' {
         $process = Start-Process -FilePath $env:DESKTOP_COUNTDOWN_TEST_EXE -ArgumentList '--render-settings' -Wait -PassThru -WindowStyle Hidden
         $process.ExitCode | Should Be 0
